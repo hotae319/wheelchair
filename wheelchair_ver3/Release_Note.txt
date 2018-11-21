@@ -1,0 +1,67 @@
+==============================================================================
+              AIRCART Openkit / Version 1.1 - July 20th, 2018
+==============================================================================
+
+>>> Note: <<<
+
+	* None
+
+>>> New functionality/features: <<<
+	
+	* None
+
+>>> Changes: <<<
+
+	* PID Control : PID Control gains have been changed. (No Ki)
+
+	* Loadcell Deadzones : White noise and deadzone values have been changed. 
+	
+	* Sleep mode: Sleep mode is technically not used anymore; VESC cannot be waken up immediately. 
+			Instead, Zero current order is given during sleep mode. 
+
+>>> Bug fixes: <<<
+
+	* PID Control : Tachometer values were incorrectly obtained. 
+
+	* Alert LED function : Alert LED Pin was incorrectly set up.
+
+
+
+   
+
+
+==============================================================================
+              AIRCART Openkit / Version 1.0 - June 8th, 2018
+==============================================================================
+
+>>> Note: <<<
+
+	* Starting delay:
+		Because of VESC's turn-on delay, AIRCART OS needs 3-second startup delay for stabilization. 
+		
+
+>>> New functionality/features: <<<
+	To be added
+	* Auto-calibration on Run mode:
+		Now, loadcell drift by extreme pressure is automatically calibrated when it's in run mode.
+				Algorithm: Because of loadcell's sensitivity, 
+					   getting many of the same values in row means 
+					   that the loadcells are not being touched.  
+					   If all the loadcells have the same values 20 times in a row when it is in run mode, 
+					   AIRCART assumes that it's not a human push but loadcell drift. 
+
+	* Ignoring Filter:
+		When loadcell is touched, the touch will be ignored for the first 5 times in order to remove loadcell's "hiccup" noise.
+
+>>> Changes: <<<
+
+	* None.
+
+
+>>> Bug fixes: <<<
+
+	* None.
+
+
+
+   
