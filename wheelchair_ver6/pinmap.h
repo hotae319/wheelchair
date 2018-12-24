@@ -27,12 +27,16 @@ const uint16_t I_PIN_LOADCELL_LB_SCK = A5;
 const uint16_t I_PIN_LOADCELL_RB_DAT = A6;
 const uint16_t I_PIN_LOADCELL_RB_SCK = A7;
 
-const uint8_t RESET_PIN = 52;
+const uint8_t RESET_PIN = 48;
 
 
 
 
 #endif /* PINAMP_H_ */
+
+
+
+
 
 
 

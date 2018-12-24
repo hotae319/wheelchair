@@ -436,13 +436,14 @@ void initAK8963(float * destination)
 void initMPU9250()
 {  
  // wake up device
-  writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x00); // Clear sleep mode bit (6), enable all sensors 
+  writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x80); // Clear sleep mode bit (6), enable all sensors 
   delay(100); // Wait for all registers to reset 
 
  // get stable time source
   writeByte(MPU9250_ADDRESS, PWR_MGMT_1, 0x01);  // Auto select clock source to be PLL gyroscope reference if ready else
   delay(200); 
-  
+  writeByte(MPU9250_ADDRESS, PWR_MGMT_2, 0x00); // add enable mpu9250
+  delay(100);
  // Configure Gyro and Thermometer
  // Disable FSYNC and set thermometer and gyro bandwidth to 41 and 42 Hz, respectively; 
  // minimum delay time for this setting is 5.9 ms, which means sensor fusion update rates cannot
@@ -1124,8 +1125,8 @@ void mpu9250_wheelchair_act(float accel0, float accel1){
     ay = (float)accelCount[1]*aRes;//- accelBias[1];
   }
   else{
-    ax = (float)accelCount[0]*aRes - ax_bias;  
-    ay = (float)accelCount[1]*aRes - ay_bias;
+    ax = (float)accelCount[0]*aRes;// - ax_bias;  
+    ay = (float)accelCount[1]*aRes;// - ay_bias;
   }   
 
   if(j==0){
@@ -1146,9 +1147,9 @@ void mpu9250_wheelchair_act(float accel0, float accel1){
     getGres();
  
     // Calculate the gyro value into actual degrees per second
-    gx = (float)gyroCount[0]*gRes;  // get actual gyro value, this depends on scale being set
-    gy = (float)gyroCount[1]*gRes;  
-    gz = (float)gyroCount[2]*gRes;   
+    gx = (float)gyroCount[0]*gRes-gyroBias[0];  // get actual gyro value, this depends on scale being set
+    gy = (float)gyroCount[1]*gRes-gyroBias[1];  
+    gz = (float)gyroCount[2]*gRes-gyroBias[2];   
   
     //readMagData(magCount);  // Read the x/y/z adc values
     //getMres();
@@ -1385,6 +1386,10 @@ float get_phi_ref(){
 }
 
 #endif
+
+
+
+
 
 
 

@@ -444,6 +444,7 @@ void Wheelchair::_update_states() {
     this->_enc_pos[i] = _vesc_ctrl->enc_pos[i+1];
     if( _rpm[i] != pre_rpm[i]){
       this->_accel[i] = float((this->_rpm[i] - pre_rpm[i])/(t_now-t_pre)*1000.0/60*2*PI); //rad/s^2
+      /*
       Serial.print("accel, current, t_now, t_pre:");
       Serial.print(_accel[i]);
       Serial.print(",");
@@ -452,6 +453,7 @@ void Wheelchair::_update_states() {
       Serial.print(t_now);
       Serial.print(",");
       Serial.println(t_pre);
+      */
       if(i==1){
         t_pre = millis();
       }
@@ -771,10 +773,11 @@ void Wheelchair::_pid_control() {
     float err_d = Kd * (err - err_prev[i]) / (millis()-pid_start_t) *1000; // delta_t = 0.015
 
     if(print_flag){
+      /*
       Serial.print("err, err_d:");
       Serial.print(err);  
       Serial.print(",");    
-      Serial.println(err_d);
+      Serial.println(err_d);*/
     }
 
     err_i[i] += err * Ki * 0.015;
@@ -865,8 +868,8 @@ float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
   angle_acc[0] = K1*_accel[0] + (1-K1)*(ax/RADIUS_WHEEL-_accel[1]);  
   
   DisturbanceTemp = SlopeControlDob(phi_ref, theta, _rpm, _enc_pos, angle_acc); // first apply DOB
-  Serial.print("Dis: ");
-  Serial.println(DisturbanceTemp[0]); 
+  //Serial.print("Dis: ");
+  //Serial.println(DisturbanceTemp[0]); 
   // Kalman filtering state equation, allocate uk
 
   /*uk[1] =  ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)
@@ -1119,6 +1122,10 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
 
 
 

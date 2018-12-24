@@ -61,17 +61,23 @@ VESC_CONTROL* _vesc_ctrl;
 
 void setup()
 {
-  // reset settinge
-  pinMode(RESET_PIN, INPUT);
-  digitalWrite(RESET_PIN, HIGH);
-  pinMode(RESET_PIN, OUTPUT);
+  //pinMode(RESET_PIN, INPUT_PULLUP);
   
-  Serial.print("testest");    
+  //digitalWrite(RESET_PIN, HIGH);
+  //pinMode(RESET_PIN, OUTPUT);
+  
+  Serial.begin(115200);
+  // reset settinge
+    
+  Serial.print("testest"); 
+  digitalWrite(RESET_PIN, LOW);
+  //delay(100);
+  digitalWrite(RESET_PIN,HIGH);   
   Wire1.begin();
   _vesc_1 = &vesc1;
   _vesc_2 = &vesc2;
   _vesc_ctrl = &vesc_ctrl;
-  Serial.begin(115200);
+  
   bldc_interface_set_rx_fw_func(bldc_fw_received);
   bldc_interface_set_rx_value_func(bldc_val_received);
   
@@ -136,6 +142,10 @@ void bldc_val_received(mc_values *val)
   /* ---------------------------- */
 }
 //=============================================
+
+
+
+
 
 
 
