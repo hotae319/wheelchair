@@ -47,6 +47,10 @@ const float D_MASSCENTER = 0.239;
 const float DIST_WHEELS = 0.342; //2*L = 0.684
 const float RADIUS_WHEEL = 0.0825; // 0.127
 
+const float I_BODY_d = 11;
+const float M_BODY_d = 61;
+const float D_MASSCENTER_d = 0.239; 
+
 enum cart_state_e {
   RUN,
   BRAKE_1,
@@ -145,6 +149,20 @@ const unsigned short crc_table[256] = { 0x0000,
 
 
 #endif /* CONSTANTS_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -833,16 +833,49 @@ void Wheelchair::straight_correction(float desire_phi, float *left_correction, f
     *left_correction = 0;
     *right_correction = 0;
   }
-
 }
 
-float (*InverseMatrix(float matrix[][2]))[2]{
+float (*Transpose32(float matrix[][3]))[2]{
+  static float TranMat[3][2];
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<2){
+      TranMat[i][j] = matrix[j][i];
+    }
+  }
+  return TranMat;
+}
+
+float (*Transpose33(float matrix[][3]))[3]{
+  static float TranMat[3][3];
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<3){
+      TranMat[i][j] = matrix[j][i];
+    }
+  }
+  return TranMat;
+}
+
+float (*InverseMatrix2(float matrix[][2]))[2]{
   static float inv[2][2];
   float det = matrix[0][0]*matrix[1][1] - matrix[0][1]*matrix[1][0];
   inv[0][0] = matrix[1][1]/det;
   inv[0][1] = -matrix[0][1]/det;
   inv[1][0] = -matrix[1][0]/det;
   inv[1][1] = matrix[0][0]/det;
+  return inv;
+}
+float (*InverseMatrix3(float matrix[][3]))[3]{
+  static float inv[3][3];
+  float (*Tmatrix)[3];
+  float det = matrix[0][0]*matrix[1][1]*matrix[2][2] + matrix[1][0]*matrix[2][1]*matrix[0][2] + matrix[2][0]*matrix[0][1]*matrix[1][2]
+  -matrix[0][0]*matrix[2][1]*matrix[1][2] - matrix[2][0]*matrix[1][1]*matrix[0][2] - matrix[1][0]*matrix[0][1]*matrix[2][2];
+  Tmatrix = Transpose33(matrix);
+  // inverse formula
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<3){      
+      inv[i][j] = 1.0/det*pow(-1, i+j)*(Tmatrix[(i-1)%3][(j-1)%3]*Tmatrix[(i+1)%3][(j+1)%3] - Tmatrix[(i+1)%3][(j-1)%3]*Tmatrix[(i-1)%3][(j+1)%3]);
+    }
+  }
   return inv;
 }
 
@@ -879,11 +912,11 @@ float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
     + (M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL)/2 + DisturbanceTemp[0] + TorqueInput[0]))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
   */
    uk[1] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(DisturbanceTemp[1] 
-    + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]*(M_BODY - 2*M_WHEEL))
-    /(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS 
+    + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]/60.0*2*PI*(M_BODY - 2*M_WHEEL))
+    /(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS 
     + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS 
-    + I_BODY)*(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[1]
-      *(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/
+    + I_BODY)*(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[1]/60.0*2*PI
+      *(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/
     ((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
 
 
@@ -895,10 +928,10 @@ float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
 */
   uk[0] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)
     *(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[1]
-      *(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/
+      *(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/
   ((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL
     *(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(DisturbanceTemp[1] + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 
-    - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)
+    - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)
     *sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
 
   for(int i=0; i<2; i++){
@@ -915,7 +948,7 @@ float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
     }
   }
 
-  iQR = InverseMatrix(QR); // if not compile, change it
+  iQR = InverseMatrix2(QR); // if not compile, change it
   
   for(int i = 0 ; i<2 ; i++){
     for(int j =0; j<2 ; j++){
@@ -942,11 +975,11 @@ float* Wheelchair::SlopeControlDob(float phi_ref, float theta, int32_t _rpm[],in
   // first row, 1 = right, 0 = left
   TotalTorque[1] =
   (I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY))*angle_acc[1]+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)*angle_acc[0]
-  + RADIUS_WHEEL*RADIUS_WHEEL/2/DIST_WHEELS*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI*_rpm[0]/60.0*2*PI + 1/2*(-M_BODY*gravity)*cos(phi_ref)*sin(theta)*RADIUS_WHEEL-1/2*D_MASSCENTER/DIST_WHEELS*M_BODY*gravity*sin(phi_ref)*sin(theta)*RADIUS_WHEEL;
+  + RADIUS_WHEEL*RADIUS_WHEEL/2/DIST_WHEELS*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI*_rpm[0]/60.0*2*PI + 1/2*(-M_BODY*gravity)*cos(phi_ref)*sin(theta)*RADIUS_WHEEL+1/2*D_MASSCENTER/DIST_WHEELS*M_BODY*gravity*sin(phi_ref)*sin(theta)*RADIUS_WHEEL;
   // second row,
   TotalTorque[0] =
   (I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY))*angle_acc[0]+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)*angle_acc[1]
-  - RADIUS_WHEEL*RADIUS_WHEEL/2/DIST_WHEELS*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI*_rpm[1]/60.0*2*PI + 1/2*(-M_BODY*gravity)*cos(phi_ref)*sin(theta)*RADIUS_WHEEL+1/2*D_MASSCENTER/DIST_WHEELS*M_BODY*gravity*sin(phi_ref)*sin(theta)*RADIUS_WHEEL;
+  - RADIUS_WHEEL*RADIUS_WHEEL/2/DIST_WHEELS*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI*_rpm[1]/60.0*2*PI + 1/2*(-M_BODY*gravity)*cos(phi_ref)*sin(theta)*RADIUS_WHEEL-1/2*D_MASSCENTER/DIST_WHEELS*M_BODY*gravity*sin(phi_ref)*sin(theta)*RADIUS_WHEEL;
   TotalT = lpf_dob(TotalTorque, 0.1, 0.015);
   for (int i =0; i < 2; i++){
     TotalTorque[i] = TotalT[i]; // if not work, use for loop
@@ -954,6 +987,119 @@ float* Wheelchair::SlopeControlDob(float phi_ref, float theta, int32_t _rpm[],in
     Disturbance[i] = TotalTorque[i]-TorqueInput[i];
   }  
   return Disturbance;
+}
+
+float (*MatMultiply_AB(float a[][2], float b[])){
+  static float ResultMat[3];
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<2){
+      ResultMat[i] = a[i][j]*b[j];
+    }
+  }
+  return ResultMat;
+}
+float (*MatMultiply_AtA(float a[][3]))[3]{
+  static float ResultMat[3][3];
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<3){
+      for(int k = 0; k++; k<2){
+        ResultMat[i][j] += a[k][i]*a[k][j];
+      }
+    }
+  }
+  return ResultMat;
+}
+float (*MatMultiply_AB_total(float a[][3], float b[])){
+  static float ResultMat[3];
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<3){
+      ResultMat[i] = a[i][j]*b[j];
+    }
+  }
+  return ResultMat;
+}
+float (*MatMultiply32(float a[][2], float b[][3]))[3]{
+  static float ResultMat[3][3];
+  for(int i = 0 ; i++; i<3){
+    for(int j =0 ; j++; j<3){
+      for(int k =0; k++; k<2){
+        ResultMat[i][j] += a[i][k]*b[k][j];
+      }
+    }
+  }
+  return ResultMat;
+}
+
+float* Wheelchair::ParameterEstimator(float angle_acc[], int32_t _rpm[], float loadcell_current[]){
+  static float *Parameter;
+  static float AtA[3][3]={{0,},{0,},{0,}};
+  static float AtB[3] = {0,};
+  float *pAtB; float (*pAtA)[3]; float (*pinvAtA)[3]; float (*pinvAtA_)[3];
+  float A[2][3]; static float A_accum[2][3] = {{0,},{0,}};
+  float (*TA)[2]; static float (*TA_accum)[2];
+  float TorqueInput[2]; static float TorqueInput_accum[2] = {0,0};
+  float AtA_[3][3]; float AtB_[3];
+
+  for(int i = 0; i++; i<2){
+    TorqueInput[i] = loadcell_current[i]*K_t;
+  }
+  A[0][0] = angle_acc[1]; A[0][1] = angle_acc[0];  A[0][2] = _rpm[0]/60.0*2*PI*gz;
+  A[1][0] = angle_acc[0]; A[1][1] = angle_acc[1];  A[1][2] = -_rpm[1]/60.0*2*PI*gz;
+  TA = Transpose32(A);
+  pAtB = MatMultiply_AB(TA, TorqueInput); // 3 by 1 column
+  for(int i = 0; i++; i<3){
+    AtB[i] += pAtB[i];
+  }
+  pAtA = MatMultiply_AtA(A);
+  for(int i = 0; i++; i<3){
+    for(int j = 0; j++; j<3){
+      AtA[i][j] += pAtA[i][j];
+    }
+  }
+  pinvAtA = InverseMatrix3(AtA);
+  // B = AX linear regression
+  Parameter = MatMultiply_AB_total(pinvAtA, AtB);
+  // B = AX + C linear regression
+  /*
+  for(int i = 0; i++; i<2){
+    for(int j =0; j++; j<3){
+      A_accum[i][j] += A[i][j];
+    }
+  }
+  TA_accum = Transpose32(A_accum);
+  for(int i = 0; i++;i<2){
+    TorqueInput_accum[i] += TorqueInput[i];
+  }
+  for(int i = 0; i++; i<3){
+    AtB_[i] = AtB[i] - MatMultiply_AB(TA_accum, TorqueInput_accum)[i];
+    for(int j = 0; j++; j<3){
+      AtA_[i][j] = AtA[i][j] - MatMultiply32(TA_accum, A_accum)[i][j];      
+    }
+  }
+  pinvAtA_ = InverseMatrix3(AtA_);
+  Parameter = MatMultiply_AB_total(pinvAtA_, AtB_);
+  */
+  return Parameter;
+}
+
+float* Wheelchair::DesiredMotion(float loadcell_current[]){
+  float TorqueInput[2];
+  TorqueInput[1] = K_t*loadcell_current[1];
+  TorqueInput[0] = K_t*loadcell_current[0];
+  // from MATLAB, M^-1 * TAU
+  DesiredAcc[1] = 
+  (TorqueInput[1]*(M_BODY_d*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS 
+    + I_BODY_d*RADIUS_WHEEL*RADIUS_WHEEL))  /(4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*I_WHEEL + 2*M_BODY_d*DIST_WHEELS
+  *DIST_WHEELS*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_BODY_d*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL 
+  + I_BODY_d*M_BODY_d*pow(RADIUS_WHEEL,4)) + (RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0]*(- M_BODY_d*DIST_WHEELS*DIST_WHEELS 
+    + I_BODY_d))/(4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*I_WHEEL + 2*M_BODY_d*DIST_WHEELS*DIST_WHEELS*I_WHEEL*RADIUS_WHEEL
+  *RADIUS_WHEEL + 2*I_BODY_d*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL + I_BODY_d*M_BODY_d*pow(RADIUS_WHEEL,4));
+  DesiredAcc[0] = 
+ (TorqueInput[0]*(M_BODY_d*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS 
+  + I_BODY_d*RADIUS_WHEEL*RADIUS_WHEEL))/(4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*I_WHEEL + 2*M_BODY_d*DIST_WHEELS*DIST_WHEELS*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL 
+ + 2*I_BODY_d*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL + I_BODY_d*M_BODY_d*pow(RADIUS_WHEEL,4)) + (RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1]
+ *(- M_BODY_d*DIST_WHEELS*DIST_WHEELS + I_BODY_d))/(4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*I_WHEEL + 2*M_BODY_d*DIST_WHEELS
+ *DIST_WHEELS*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_BODY_d*I_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL + I_BODY_d*M_BODY_d*pow(RADIUS_WHEEL,4));
 }
 
 void Wheelchair::brake_position() {
@@ -1122,6 +1268,19 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

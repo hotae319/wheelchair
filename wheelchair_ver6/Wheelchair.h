@@ -89,6 +89,9 @@ class Wheelchair {
     float _desire_phi;
     cart_pose _cart_pose;
     imu_pose _imu_pose; 
+    float DesiredAcc[2];
+    float DesiredSpd[2];
+    float DesiredPos[2];
 
     int cal_idx = 0;
     int flag_cal = LOW;
@@ -108,7 +111,8 @@ class Wheelchair {
     void straight_correction(float desire_phi, float *left_correction, float *right_correction);
     float* DynamicObserver(float phi_ref, float theta, int32_t _rpm[]);
     float* SlopeControlDob(float phi_ref, float theta, int32_t _rpm[], int32_t _enc_pos[], float angle_acc[]);
-
+    float* ParameterEstimator(float angle_acc[], int32_t _rpm[], float loadcell_current[]);
+    float* DesiredMotion(float loadcell_current[]);
 
     void calibration_reset();
     void calibration_charge();
@@ -241,6 +245,20 @@ class Wheelchair {
 
 
 #endif /* Wheelchair_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
