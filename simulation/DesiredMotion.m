@@ -1,0 +1,10 @@
+function desired_acc = DesiredMotion(current)
+
+M_BODY = 61;M_WHEEL = 6; gravity =9.81; theta = 0*pi/180;
+RADIUS_WHEEL = 0.0825; DIST_WHEELS = 0.342; I_WHEEL = 0.03; I_BODY = 11;
+Kt = 0.4;
+torque = Kt * current;
+M = [I_WHEEL+RADIUS_WHEEL^2/(4*DIST_WHEELS^2)*(M_BODY*DIST_WHEELS^2+I_BODY), RADIUS_WHEEL^2/(4*DIST_WHEELS^2)*(M_BODY*DIST_WHEELS^2-I_BODY);RADIUS_WHEEL^2/(4*DIST_WHEELS^2)*(M_BODY*DIST_WHEELS^2-I_BODY), I_WHEEL+RADIUS_WHEEL^2/(4*DIST_WHEELS^2)*(M_BODY*DIST_WHEELS^2+I_BODY)];
+desired_acc = inv(M)*torque;
+
+end
