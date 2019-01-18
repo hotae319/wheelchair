@@ -22,7 +22,7 @@ const int16_t LOADCELL_RAW_NOISE_THRES = 5000;
 const float LOADCELL_CURRENT_GAIN_F = 0.04;   //0.020
 const float LOADCELL_CURRENT_GAIN_B = 0.08;   //0.017
 
-const float LOADCELL_CURRENT_DEADZONE = 2;
+const float LOADCELL_CURRENT_DEADZONE = 0.5;
 
 const int AUTO_CALIBRATION_LIMIT =  50;
 
@@ -32,20 +32,20 @@ const int OBSTACLE_CURRENT_LIMIT = 50;
 const int OBSTACLE_CURRENT_GAP = 30;
 const int BUMP_CURRENT_LIMIT = 20;
 const float DNAGER_FEEDBACK = 0.3;
-#define POLE_PAIR 15
+#define POLE_PAIR 31
 #define gravity 9.81
 
-const float K_t = 0.4758; // torque constant
+const float K_t = 1.4758; // torque constant
 const int ST_COUNT = 20;
 const float ST_INTENTION = 4;
 
 const float I_WHEEL = 0.03;
-const float I_BODY = 11;
-const float M_BODY = 61;
+const float I_BODY = 5.16; // Ic+mcd^2+2mwL^2+2Im, 5.16 + 4.5~5.0(behind term)
+const float M_BODY = 77; // m = mc+2mw -> 61+16 = 77
 const float M_WHEEL = 8; //mc = m_body-2m_wheel
 const float D_MASSCENTER = 0.239; 
 const float DIST_WHEELS = 0.342; //2*L = 0.684
-const float RADIUS_WHEEL = 0.0825; // 0.127
+const float RADIUS_WHEEL = 0.127; //0.0825; // 0.127
 
 const float I_BODY_d = 5.16;
 const float M_BODY_d = 61;
@@ -152,6 +152,122 @@ const unsigned short crc_table[256] = { 0x0000,
 
 
 #endif /* CONSTANTS_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

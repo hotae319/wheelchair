@@ -1221,6 +1221,7 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     if (delt_t > 500) { // update LCD once per half-second independent of read rate
       print_flag = true;
     if(SerialDebug) {
+      /*
     Serial.print("ax = "); Serial.print((int)1000*ax);  
     Serial.print(" ay = "); Serial.print((int)1000*ay); 
     Serial.print(" az = "); Serial.print((int)1000*az); Serial.println(" mg");
@@ -1234,7 +1235,7 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     Serial.print("q0 = "); Serial.print(q[0]);
     Serial.print(" qx = "); Serial.print(q[1]); 
     Serial.print(" qy = "); Serial.print(q[2]); 
-    Serial.print(" qz = "); Serial.println(q[3]); 
+    Serial.print(" qz = "); Serial.println(q[3]);*/ 
     }               
     
 
@@ -1301,12 +1302,14 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     roll  *= 180.0f / PI;
      
     if(SerialDebug) {
+      /*
     Serial.print("Yaw, Pitch, Roll: ");
     Serial.print(yaw, 2);
     Serial.print(", ");
     Serial.print(pitch, 2);
     Serial.print(", ");
     Serial.println(roll, 2);
+    */
     Serial.print("theta, phi, phi_ref:");
     Serial.print(theta, 2);
     Serial.print(", ");
@@ -1314,10 +1317,10 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     Serial.print(",");
     Serial.println(phi_ref,2);
     Serial.print("comp_roll, comp_pitch, comp_theta, comp_phi_ref: ");
-    Serial.print(comp_roll, 2);
+    /*Serial.print(comp_roll, 2);
     Serial.print(", ");
     Serial.print(comp_pitch, 2);
-    Serial.print(", ");
+    Serial.print(", ");*/
     Serial.print(comp_theta, 2);
     Serial.print(", ");
     Serial.println(comp_phi_ref, 2);
@@ -1325,7 +1328,12 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     Serial.print("rate = "); Serial.print((float)sumCount/sum, 2); Serial.println(" Hz");
     fq_test = sumCount/sum;
     }
-
+      roll *= PI/180.0f;
+      pitch *= PI/180.0f;
+      yaw *= PI/180.0f; 
+      theta *= PI/180.0f;
+      phi *= PI/180.0f;
+      phi_ref *= PI/180.0f;
     // With these settings the filter is updating at a ~145 Hz rate using the Madgwick scheme and 
     // >200 Hz using the Mahony scheme even though the display refreshes at only 2 Hz.
     // The filter update rate is determined mostly by the mathematical steps in the respective algorithms, 
@@ -1368,25 +1376,147 @@ float get_gz(){
   return gz;
 }*/
 float get_roll(){
+
 	return roll;
 }
 float get_pitch(){
+
 	return pitch;
 }
 float get_yaw(){
+
 	return yaw;
 }
 float get_theta(){
+
   return theta;
 }
 float get_phi(){
+
   return phi;
 }
 float get_phi_ref(){
+
   return phi_ref;
 }
 
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

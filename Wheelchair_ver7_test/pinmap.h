@@ -29,10 +29,130 @@ const uint16_t I_PIN_LOADCELL_RB_SCK = 36;
 
 const uint8_t RESET_PIN = 48;
 
+const uint8_t TOUCH_R = A1;       //JW
+const uint8_t TOUCH_L = A3;       //JW
+const uint8_t TOUCH_M = A2;       //JW
+
 
 
 
 #endif /* PINAMP_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

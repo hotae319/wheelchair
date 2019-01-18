@@ -40,6 +40,8 @@ float sgn(float a){
   }
 }
 
+
+
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(144, PIN, NEO_GRB + NEO_KHZ800);
 
 void Wheelchair::setup() {
@@ -54,6 +56,10 @@ void Wheelchair::setup() {
   pinMode(O_PIN_LED4, OUTPUT);
   pinMode(O_PIN_ALERT_LED, OUTPUT);
   pinMode(O_PIN_MOTOR_SWITCH, OUTPUT);
+
+  pinMode(TOUCH_L, INPUT);       //JW
+  pinMode(TOUCH_M, INPUT);       //JW
+  pinMode(TOUCH_R, INPUT);       //JW
   
   _all_led_off();
   _alert_led_off();
@@ -79,7 +85,6 @@ void Wheelchair::setup() {
     }
   }
   // motor switch high
-  Serial.print("vesc before:");
   _vesc_on();
   _vesc_1->init();
   _vesc_2->init();
@@ -109,8 +114,14 @@ void Wheelchair::run() {
   static int sleep_count = 0;
   static bool sleep_tick = false;
   int i;
-  if(print_flag){    
-    
+
+    Serial.print("current_real: ");
+    Serial.print(loadcell_current[1]);  
+    Serial.print(","); 
+    Serial.println(loadcell_current[0]);   
+  if(print_flag){  
+    Serial.print("state: ");
+    Serial.println(state);        
     Serial.print("currentR, currentL, vesc_currentR, vesc_currentL, encR, encL, rotation, inclination: ");
     Serial.print(loadcell_current[1]); // right (front +)
     Serial.print(","); 
@@ -144,12 +155,12 @@ void Wheelchair::run() {
     Serial.print("hand_force_R, hand_force_L");
     Serial.print(loadcell_current[1]*500/LOADCELL_CURRENT_GAIN_B*0.4535/7050*0.182*9.81); //0.957*loadcell_current
     Serial.print(",");
-    Serial.print(-loadcell_current[0]*500/LOADCELL_CURRENT_GAIN_B*0.4535/7050*0.182*9.81);
+    Serial.print(loadcell_current[0]*500/LOADCELL_CURRENT_GAIN_B*0.4535/7050*0.182*9.81);
     Serial.println("N");
     Serial.print("voltage");
     Serial.println(analogRead(A8));
     
-    print_flag = false;
+    //print_flag = false;
 
   }
   // state check
@@ -164,18 +175,20 @@ void Wheelchair::run() {
         _vesc_on();
         brake_timer = millis();
         run_count = 0;
-        for(i=20;i<95;i++){
-          pixels.setPixelColor(i, pixels.Color(70,70,70)); // When 'RUN' Mode
+        
+        /*for(i=20;i<95;i++){
+          pixels.setPixelColor(i, pixels.Color(0,70,0)); // When 'RUN' Mode
         }
-        pixels.show(); 
+        pixels.show(); */
+        
         break;
       case BRAKE_1:
         _vesc_on();
         brake_timer = millis();
-        for(i=20;i<95;i++){
+        /*for(i=20;i<95;i++){
           pixels.setPixelColor(i, pixels.Color(3,3,3)); // When 'Brake1 ~3 ' Mode
         }
-        pixels.show(); 
+        pixels.show(); */
         stop_count = 0;
         break;
       case BRAKE_2:
@@ -183,13 +196,13 @@ void Wheelchair::run() {
         _pid_reset();
         brake_timer = millis();
         stop_t = millis();
-        _enc_pos_stop[0] =  _vesc_ctrl->enc_pos[0];
-        _enc_pos_stop[1] =  _vesc_ctrl->enc_pos[1];
+        _enc_pos_stop[0] =  _enc_pos[0];
+        _enc_pos_stop[1] =  _enc_pos[1];
         break;
       case BRAKE_3:
         _vesc_on();
-        _enc_pos_stop[0] =  _vesc_ctrl->enc_pos[0];
-        _enc_pos_stop[1] =  _vesc_ctrl->enc_pos[1];
+        _enc_pos_stop[0] =  _enc_pos[0];
+        _enc_pos_stop[1] =  _enc_pos[1];
         break;
       case BRAKE_SLEEP:
         sleep_count = 0;
@@ -222,24 +235,56 @@ void Wheelchair::run() {
         //auto_calibration();
         set_LED(VBAT);
         float left_current=0, right_current=0;
+        float *Ctorque; float* Distemp; float *midParam;
         if(_cart_pose.inclination>10){
           //g_compensation_control(_imu_pose._phi_ref/180.0f*PI, _imu_pose._theta/180.0f*PI, &left_current, &right_current);
-        }
-   
-        DisturbanceWheel = DynamicObserver(_imu_pose._phi_ref, _imu_pose._theta, _rpm);
-        _vesc_2->set_current(loadcell_current[1]+right_current);
-        _vesc_1->set_current(loadcell_current[0]-left_current);
+        }   
 
+        DisturbanceWheel = DynamicObserver(_imu_pose._phi_ref, _imu_pose._theta, _rpm);
+        Distemp = DisturbanceObserver(phi_ref, theta, _rpm, _enc_pos, _accel);
+        DesiredAcc = DesiredMotion(loadcell_current, _rpm);
+   		  Ctorque = CompensationControl(_rpm, phi_ref, theta, DisturbanceWheel, DesiredAcc);
+    	  _vesc_2->set_current(loadcell_current[1]);
+        _vesc_1->set_current(-loadcell_current[0]);
+        //_vesc_2->set_current(loadcell_current[1]+right_current);
+        //_vesc_1->set_current(loadcell_current[0]-left_current);
+        //midParam = ParameterEstimator(angle_acc, _rpm, loadcell_current);
+        midParam = ParameterEstimator(_accel, _rpm, loadcell_current);
         if(print_flag){
-          Serial.print("DisturbanceWheel R,L: ");
+          Serial.print("DisturbanceWheel R,L/only DOB R,L: ");
           Serial.print(DisturbanceWheel[1]);
           Serial.print(",");
-          Serial.println(DisturbanceWheel[0]);
+          Serial.print(DisturbanceWheel[0]);
+          Serial.print(",");  
+          Serial.print(Distemp[1]);
+          Serial.print(",");
+          Serial.println(Distemp[0]);
+          Serial.print("m, I, d: ");
+          Serial.print(midParam[0],6);
+          Serial.print(",");
+          Serial.print(midParam[1],6);
+          Serial.print(",");
+          Serial.println(midParam[2],6);
+          Serial.print("_accel R,L: ");
+          Serial.print(_accel[1]);
+          Serial.print(",");
+          Serial.println(_accel[0]);
+          Serial.print("Ctorque: ");
+          Serial.print(Ctorque[1]);
+          Serial.print(",");
+          Serial.println(Ctorque[0]);
+          Serial.print("right, left: ");
+          Serial.print(right_current);
+          Serial.print(",");
+          Serial.println(left_current);
+          Serial.print("gz: ");
+          Serial.println(gz);
         }
         //delete[] DisturbanceWheel;
         //DisturbanceWheel = nullptr;
         break;        
       }
+  	
       case BRAKE_1:
         set_LED(VBAT);
         _vesc_1->set_current_brake(25);
@@ -248,10 +293,10 @@ void Wheelchair::run() {
 
       case BRAKE_2:
         set_LED(VBAT);
-        brake_position();        
+        /*brake_position();        
         if (abs(_current[0]) >= 3 || abs(_current[1]) >= 3) {
           brake_timer = millis();  // if force is still applied, brake_timer extends
-        }
+        }*/
         break;
 
       case BRAKE_3:
@@ -265,6 +310,7 @@ void Wheelchair::run() {
 
       case BRAKE_SLEEP:
         set_LED(VBAT);
+        /*
         if(!sleep_tick){        
           for(i=20;i<95;i++){
           pixels.setPixelColor(i, pixels.Color(7,7,7)); // When 'RUN' Mode
@@ -283,7 +329,8 @@ void Wheelchair::run() {
           sleep_count = 13;
           pixels.show(); 
         }        
-         sleep_count --;       
+         sleep_count --;    
+         */   
         break;
 
       case EMERGENCY:
@@ -297,15 +344,21 @@ void Wheelchair::run() {
         }          
         else if(emer==1){          
           float smooth_current2 = lpf_emer(loadcell_current[1], 0.1, 0.015); // have to make lpf_straight ftn.
-          float smooth_current1 = lpf_emer(loadcell_current[0], 0.1, 0.015);
+          float smooth_current1 = lpf_emer(-loadcell_current[0], 0.1, 0.015);
           _vesc_1->set_current(smooth_current1);
           _vesc_2->set_current(smooth_current2);          
         }      
         // soon after we can add impedance control in case of emergency
         break;
       case RIGHT:
+          set_LED(VBAT);
+          _vesc_2->set_current(loadcell_current[1]);
+          _vesc_1->set_current(-loadcell_current[0]);
           break;
       case LEFT:
+          set_LED(VBAT);  
+          _vesc_2->set_current(loadcell_current[1]);
+          _vesc_1->set_current(-loadcell_current[0]);
           break;
       case CLIMB:
         break;
@@ -318,8 +371,8 @@ void Wheelchair::run() {
 
     uint32_t time_out = millis() - brake_timer;
     if(print_flag){
-      Serial.print("timeout");
-      Serial.println(time_out);      
+      /*Serial.print("timeout");
+      Serial.println(time_out);     */ 
     }
 
     // state transition
@@ -331,14 +384,14 @@ void Wheelchair::run() {
           break;     
         }
       case RUN:
-        if (is_touched()) {
+        if (is_touched() && MiddleTouch()) {
           brake_timer = millis();
           break;
         }
-        else if(is_touched() && RightTouch){
+        else if(is_touched() && RightTouch()){
           next_state = RIGHT;
         }
-        else if(is_touched() && LeftTouch){
+        else if(is_touched() && LeftTouch()){
           next_state = LEFT;
         }
           // possible to change the condition due to distinguishing start with this
@@ -360,30 +413,132 @@ void Wheelchair::run() {
           next_state = BRAKE_1;
         }      
   
+      case RIGHT:       //JW
+        if (is_touched() && MiddleTouch()){
+           next_state = RUN;
+           break; 
+        }
+        else if(is_touched() && RightTouch()){
+          next_state = RIGHT;
+          brake_timer = millis();
+            break;
+        }
+        else if(is_touched() && LeftTouch()){
+          next_state = LEFT;
+          brake_timer = millis();
+          break;
+        }
+        else if (time_out > 200) {
+          next_state = BRAKE_1;
+        }
+
+      case LEFT:       //JW
+        if (is_touched() && MiddleTouch()){
+           next_state = RUN;
+           break; 
+        }
+        else if(is_touched() && RightTouch()){
+            next_state = RIGHT;
+            break;
+        }
+        else if(is_touched() && LeftTouch()){
+          next_state = LEFT;
+          brake_timer = millis();
+          break;
+        }
+        else if (time_out > 200) {
+          next_state = BRAKE_1;
+        } 
+
       case BRAKE_1:
-        if (is_touched()) {
+        if (is_touched() && MiddleTouch()) {
           next_state = RUN;
-        } else if (time_out > 500) {
+        } 
+        else if (time_out > 2500) {
           next_state = BRAKE_2;
         }
+        else if(is_touched() && RightTouch()){
+            next_state = RIGHT;
+            brake_timer = millis();
+        }
+        else if(is_touched() && LeftTouch()){
+          next_state = LEFT;
+          brake_timer = millis();
+        }
+        break;
       case BRAKE_2:
-        if (is_touched()) {
+        if (is_touched() && MiddleTouch()) {
           next_state = RUN;
-        } else if (time_out > 3000) {
+        } 
+        else if (time_out > 100) {
           next_state = BRAKE_3;
         }
+        else if(is_touched() && RightTouch()){
+          next_state = RIGHT;
+          brake_timer = millis();
+        }
+        else if(is_touched() && LeftTouch()){
+          next_state = LEFT;
+          brake_timer = millis();
+        }
       case BRAKE_3:
-        if (is_touched()) {
+        if (is_touched() && MiddleTouch()) {
           next_state = RUN;
-        } else if (time_out > 6000) {
+        } 
+        else if (time_out > 6000) {
           next_state = BRAKE_SLEEP;
         }
+        else if(is_touched() && RightTouch()){
+          next_state = RIGHT;
+          brake_timer = millis();
+        }
+        else if(is_touched() && LeftTouch()){
+          next_state = LEFT;
+          brake_timer = millis();
+        }
       case BRAKE_SLEEP:
-        if (is_touched()) {
+        if (is_touched() && MiddleTouch()) {
           next_state = RUN;          
+        }
+        else if(is_touched() && RightTouch()){
+          next_state = RIGHT;
+          brake_timer = millis();
+        }
+        else if(is_touched() && LeftTouch()){
+          next_state = LEFT;
+          brake_timer = millis();
         }
     }
   }
+
+int Wheelchair::LeftTouch(){       //JW
+  if(analogRead(TOUCH_L)>600){
+    return 1;
+  }
+  else{
+    return 0;
+  }
+}
+
+int Wheelchair::RightTouch(){       //JW
+  if(analogRead(TOUCH_R)>600){
+    return 1;
+  }
+  else{
+    return 0;
+  }
+}
+
+int Wheelchair::MiddleTouch(){       //JW
+  //Serial.print("touchM: ");
+  //Serial.println(analogRead(TOUCH_M));
+  if(analogRead(TOUCH_M)>750){
+    return 1;
+  }
+  else{
+    return 0;
+  }
+}
 
 int Wheelchair::is_touched() {
   if (abs(loadcell_current[0]) >= LOADCELL_CURRENT_DEADZONE ||
@@ -424,41 +579,49 @@ void Wheelchair::_update_states() {
   _vesc_2->get_values();
 
   t_now = millis();  
+  if(print_flag){
+          Serial.print("rpm,pre_rpm: ");
+          Serial.print(_rpm[0]);
+          Serial.print(",");
+          Serial.print(pre_rpm[0]);
+          Serial.print(",");
+          Serial.print(_rpm[1]);
+          Serial.print(",");
+          Serial.println(pre_rpm[1]);
+          print_flag = false;
+        };
   for (int i = 0; i < 2; i++) {
     this->_current[i] 	= _vesc_ctrl->current[i];
-    pre_rpm[i] = this->_rpm[i];
+    if(i==0){
+      pre_rpm[i] = -this->_rpm[i]; 
+      // cover change of sign
+    }
+    else{
+      pre_rpm[i] = this->_rpm[i]; 
+    }
     pre_enc_pos[i] = this->_enc_pos[i];
     this->_rpm[i] = _vesc_ctrl->erpm[i]/POLE_PAIR;
     this->_enc_pos[i] = _vesc_ctrl->enc_pos[i];
     if( _rpm[i] != pre_rpm[i]){
       this->_accel[i] = float((this->_rpm[i] - pre_rpm[i])/(t_now-t_pre)*1000.0/60*2*PI); //rad/s^2
-      /*
-      Serial.print("accel, current, t_now, t_pre:");
-      Serial.print(_accel[i]);
-      Serial.print(",");
-      Serial.print(loadcell_current[i]);
-      Serial.print(",");
-      Serial.print(t_now);
-      Serial.print(",");
-      Serial.println(t_pre);
-      */
-      if(i==1){
-        t_pre = millis();
-      }
       // enough with angle acceleration
     }
     else{
       this->_accel[i] = 0;
       //keep t_pre
     }
+    if(i==1){            
+      t_pre = millis();
+    }
   }
+
   if (j==0){
     this->_enc_pos[0] = 0;
     this->_enc_pos[1] = 0; //initialization
     current_gain = 0;
     j++;
   }
-  
+
   _get_imu_state(); // get imu data, store the data on the global variable
   // pose estimation update
   
@@ -466,14 +629,16 @@ void Wheelchair::_update_states() {
   //this->_cart_pose.rotation = float((this->_enc_pos[0]-this->_enc_pos[1])/DIST_WHEELS)*RADIUS_WHEEL; //
   float err1 = _enc_pos[1]-pre_enc_pos[1];
   float err2 = _enc_pos[0]-pre_enc_pos[0];  
-  if((_enc_pos[1]-pre_enc_pos[1])*_rpm[1] < 0 && abs(_enc_pos[1]-pre_enc_pos[1])>200){
+  if(abs(_enc_pos[1]-pre_enc_pos[1])>200){
     err1 -= 360*sgn(_enc_pos[1]-pre_enc_pos[1]);
   }
-  else if((_enc_pos[0]-pre_enc_pos[0])*_rpm[0] < 0 && abs(_enc_pos[0]-pre_enc_pos[0])>200){
+  if(abs(_enc_pos[0]-pre_enc_pos[0])>200){
     err2 -= 360*sgn(_enc_pos[0]-pre_enc_pos[0]);
   }
   odometry = (err1+err2)/DIST_WHEELS*RADIUS_WHEEL;
      // because  left and right wheel has different direction
+
+
   if(print_flag){
   Serial.print("odometry:");
   Serial.println(odometry); // right
@@ -484,33 +649,23 @@ void Wheelchair::_update_states() {
     _imu_pose_phi_pre = _imu_pose._phi;
   }
   else{
-    this->_cart_pose.rotation = _imu_pose_phi_pre - correction; // minus due to direction
+    this->_cart_pose.rotation = _imu_pose_phi_pre - correction; // minus due to direction, phi_ref
     _imu_pose_phi_pre = _imu_pose._phi_ref; 
   }
   this->loadcell_update();
   
-  if(is_touched() && j<50 && abs(_accel[1])>0.5){
-  	// linear regression LSM
-  	xy += _accel[1]*_current[1];
-  	xsquare += _accel[1]*_accel[1];
-    current_gain = xy/xsquare *(LOADCELL_CURRENT_GAIN_B+1)*4/6-1;
-    //if(current_gain<LOADCELL_CURRENT_GAIN_B){ current_gain = LOADCELL_CURRENT_GAIN_B}
-    j++;
-    Serial.print("j:");
-    Serial.print(j);
-    Serial.print(",");
-    Serial.print("current_gain:");
-    Serial.println(current_gain);
-  }
-  
+  // Change of left 0's parameter's sign
+  loadcell_current[0] *= -1;
+  this->_current[0] *= -1;
+  //pre_enc_pos[0] *= -1;
+  this->_rpm[0] *= -1;
+  //this->_enc_pos[0] *= -1;
+  this->_accel[0] *= -1;
 }
 
 void Wheelchair::_get_imu_state() {
 	static uint16_t imu_count = 0; 
   mpu9250_wheelchair_act(_accel[0],_accel[1]); 
-  //_imu_pose._roll = get_roll();
-  //_imu_pose._pitch = get_pitch();
-  //_imu_pose._yaw = get_yaw();  
   if(imu_count>200){
  	_imu_pose._theta = get_theta();
   }
@@ -526,9 +681,6 @@ void Wheelchair::loadcell_update() {
   {
     int16_t temp;
     temp = loadcell_read_off(i); // subtract offset
-   
-    //loadcell[i].set_scale(calibration_factor);
-    //hand_force[i] = loadcell[i].get_units()*9.81; 
     // kg to N  2(left, minus =front), 3(right, plus = front)
     //     Reading[i] = temp;
 
@@ -741,9 +893,8 @@ void Wheelchair::_pid_control() {
   #define ERR_DEAD 3
   for (int i = 0; i < 2; i++)
   {
-    //int rot_count = int(_rpm[i]/60 * (millis()-pid_start_t)/1000);
     float err = _enc_pos[i] - _enc_pos_stop[i];
-    if(abs(err)>240){ //err*sgn(_rpm[i])<0
+    if(abs(err)>240){ 
       err -= 360*sgn(err);
     }
     float err_p = err * Kp;
@@ -765,7 +916,7 @@ void Wheelchair::_pid_control() {
     }*/
 
     err_i[i] += err * Ki * 0.015;
-    pid_out[i] = err_p + err_i[i] + err_d;                                                                                                                                                    Serial.println(pid_out[i]);
+    pid_out[i] = err_p + err_i[i] + err_d;                                                                                                                                                    
     err_prev[i] = err;
     if(i==1){
 	    pid_start_t = millis();
@@ -774,7 +925,7 @@ void Wheelchair::_pid_control() {
     if (pid_out[i] > PID_LIMIT)         pid_out[i] = PID_LIMIT;
     else if (pid_out[i] < -PID_LIMIT)   pid_out[i] = -PID_LIMIT;
   }
-  _vesc_1->set_current(-pid_out[0]);
+  _vesc_1->set_current(pid_out[0]);
   _vesc_2->set_current(-pid_out[1]);
 
 }
@@ -790,55 +941,12 @@ void Wheelchair::g_compensation_control(float phi_ref, float theta, float *left,
 }
 
 
-float (*Transpose32(float matrix[][3]))[2]{
-  static float TranMat[3][2];
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<2){
-      TranMat[i][j] = matrix[j][i];
-    }
-  }
-  return TranMat;
-}
-
-float (*Transpose33(float matrix[][3]))[3]{
-  static float TranMat[3][3];
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<3){
-      TranMat[i][j] = matrix[j][i];
-    }
-  }
-  return TranMat;
-}
-
-float (*InverseMatrix2(float matrix[][2]))[2]{
-  static float inv[2][2];
-  float det = matrix[0][0]*matrix[1][1] - matrix[0][1]*matrix[1][0];
-  inv[0][0] = matrix[1][1]/det;
-  inv[0][1] = -matrix[0][1]/det;
-  inv[1][0] = -matrix[1][0]/det;
-  inv[1][1] = matrix[0][0]/det;
-  return inv;
-}
-float (*InverseMatrix3(float matrix[][3]))[3]{
-  static float inv[3][3];
-  float (*Tmatrix)[3];
-  float det = matrix[0][0]*matrix[1][1]*matrix[2][2] + matrix[1][0]*matrix[2][1]*matrix[0][2] + matrix[2][0]*matrix[0][1]*matrix[1][2]
-  -matrix[0][0]*matrix[2][1]*matrix[1][2] - matrix[2][0]*matrix[1][1]*matrix[0][2] - matrix[1][0]*matrix[0][1]*matrix[2][2];
-  Tmatrix = Transpose33(matrix);
-  // inverse formula
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<3){      
-      inv[i][j] = 1.0/det*pow(-1, i+j)*(Tmatrix[(i-1)%3][(j-1)%3]*Tmatrix[(i+1)%3][(j+1)%3] - Tmatrix[(i+1)%3][(j-1)%3]*Tmatrix[(i-1)%3][(j+1)%3]);
-    }
-  }
-  return inv;
-}
-
-float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
+float* Wheelchair::DynamicObserver(float phi_ref, float theta, float _rpm[]){
   // It is about small state which includes only angle acceleration 
   float K1 = 0.8; float TorqueInput[2];
   //float *DisturbanceTemp = new float[2]; // dynamic allocation
-  float *DisturbanceTemp;
+  static float DisturbanceTemp[2];
+  float *pDisturbanceTemp;
   float xk[2], uk[2], yk[2]; float Kalman_Gain[2][2] = {0,};
   float Qk[2][2]={
     {1, 0},
@@ -852,41 +960,29 @@ float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
     TorqueInput[i] = loadcell_current[i]*K_t;
   }
   // measurement from ax and encoder 
-  angle_acc[1] = K1*_accel[1] + (1-K1)*(ax/RADIUS_WHEEL-_accel[0]);
-  angle_acc[0] = K1*_accel[0] + (1-K1)*(ax/RADIUS_WHEEL-_accel[1]);  
+  angle_acc[1] = K1*_accel[1] + (1-K1)*(2.0*ax*10/RADIUS_WHEEL-_accel[0]);
+  angle_acc[0] = K1*_accel[0] + (1-K1)*(2.0*ax*10/RADIUS_WHEEL-_accel[1]);  
   
-  DisturbanceTemp = DisturbanceObserver(phi_ref, theta, _rpm, _enc_pos, angle_acc); // first apply DOB
+  pDisturbanceTemp = DisturbanceObserver(phi_ref, theta, _rpm, _enc_pos, angle_acc); // first apply DOB
+  DisturbanceTemp[1] = *(pDisturbanceTemp+1);
+  DisturbanceTemp[0] = *pDisturbanceTemp;
   //Serial.print("Dis: ");
   //Serial.println(DisturbanceTemp[0]); 
   // Kalman filtering state equation, allocate uk
-
-  /*uk[1] =  ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)
-    *(DisturbanceTemp[1] + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS)))
-  /((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL))
-   + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*((D_MASSCENTER*gz*_rpm[1]*(M_BODY - 2*M_WHEEL)*RADIUS_WHEEL*RADIUS_WHEEL)/(2*DIST_WHEELS) 
-    + (M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL)/2 + DisturbanceTemp[0] + TorqueInput[0]))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
-  */
    uk[1] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(DisturbanceTemp[1] 
-    + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]/60.0*2*PI*(M_BODY - 2*M_WHEEL))
+    + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*_rpm[0]/60.0*2*PI*(M_BODY - 2*M_WHEEL))
     /(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS 
     + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS 
-    + I_BODY)*(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[1]/60.0*2*PI
+    + I_BODY)*(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*_rpm[1]/60.0*2*PI
       *(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/
     ((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
 
-
-  /*uk[0] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)
-    *((D_MASSCENTER*gz*_rpm[1]*(M_BODY - 2*M_WHEEL)*RADIUS_WHEEL*RADIUS_WHEEL)/(2*DIST_WHEELS) + (M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL)/2 + DisturbanceTemp[0]+ TorqueInput[0]))
-  /((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) 
-  + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(DisturbanceTemp[1] + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 
-    - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));   
-*/
   uk[0] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)
-    *(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[1]
+    *(DisturbanceTemp[0] + TorqueInput[0] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*_rpm[1]/60.0*2*PI
       *(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/
   ((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL
     *(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(DisturbanceTemp[1] + TorqueInput[1] + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 
-    - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz*_rpm[0]*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)
+    - (D_MASSCENTER*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*_rpm[0]/60.0*2*PI*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)
     *sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
 
   for(int i=0; i<2; i++){
@@ -917,11 +1013,13 @@ float* Wheelchair::DynamicObserver(float phi_ref, float theta, int32_t _rpm[]){
   xk[0] = uk[0] + Kalman_Gain[1][0]*(yk[1]-uk[1])+Kalman_Gain[1][1]*(yk[0]-uk[0]);  
   angle_acc[1] = xk[1];
   angle_acc[0] = xk[0];
-  DisturbanceTemp = DisturbanceObserver(phi_ref, theta, _rpm, _enc_pos, xk); // secondly apply DOB
+  pDisturbanceTemp = DisturbanceObserver(phi_ref, theta, _rpm, _enc_pos, xk); // secondly apply DOB
+  DisturbanceTemp[1] = *(pDisturbanceTemp+1);
+  DisturbanceTemp[0] = *pDisturbanceTemp;
   return DisturbanceTemp;
 }
 
-float* Wheelchair::DisturbanceObserver(float phi_ref, float theta, int32_t _rpm[],int32_t _enc_pos[], float angle_acc[]){
+float* Wheelchair::DisturbanceObserver(float phi_ref, float theta, float _rpm[],int32_t _enc_pos[], float _angle_acc[]){
   float TotalTorque[2];
   static float Disturbance[2];
   float TorqueInput[2];
@@ -929,64 +1027,28 @@ float* Wheelchair::DisturbanceObserver(float phi_ref, float theta, int32_t _rpm[
 
   // first row, 1 = right, 0 = left
   TotalTorque[1] =
-  (I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY))*angle_acc[1]+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)*angle_acc[0]
+  (I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY))*_angle_acc[1]+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)*_angle_acc[0]
   + RADIUS_WHEEL*RADIUS_WHEEL/2/DIST_WHEELS*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI*_rpm[0]/60.0*2*PI + 1/2*(-M_BODY*gravity)*cos(phi_ref)*sin(theta)*RADIUS_WHEEL+1/2*D_MASSCENTER/DIST_WHEELS*M_BODY*gravity*sin(phi_ref)*sin(theta)*RADIUS_WHEEL;
   // second row,
   TotalTorque[0] =
-  (I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY))*angle_acc[0]+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)*angle_acc[1]
+  (I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY))*_angle_acc[0]+RADIUS_WHEEL*RADIUS_WHEEL/4/DIST_WHEELS*DIST_WHEELS*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)*_angle_acc[1]
   - RADIUS_WHEEL*RADIUS_WHEEL/2/DIST_WHEELS*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI*_rpm[1]/60.0*2*PI + 1/2*(-M_BODY*gravity)*cos(phi_ref)*sin(theta)*RADIUS_WHEEL-1/2*D_MASSCENTER/DIST_WHEELS*M_BODY*gravity*sin(phi_ref)*sin(theta)*RADIUS_WHEEL;
   TotalT = lpf_dob(TotalTorque, 0.1, 0.015);
   for (int i =0; i < 2; i++){
     TotalTorque[i] = TotalT[i]; // if not work, use for loop
+    //Serial.print("TotalTorque:");
+    //Serial.println(TotalTorque[i]);
     TorqueInput[i] = loadcell_current[i]*K_t;
     Disturbance[i] = TotalTorque[i]-TorqueInput[i];
   }  
+
   return Disturbance;
 }
 
-float (*MatMultiply_AB(float a[][2], float b[])){
-  static float ResultMat[3];
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<2){
-      ResultMat[i] = a[i][j]*b[j];
-    }
-  }
-  return ResultMat;
-}
-float (*MatMultiply_AtA(float a[][3]))[3]{
-  static float ResultMat[3][3];
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<3){
-      for(int k = 0; k++; k<2){
-        ResultMat[i][j] += a[k][i]*a[k][j];
-      }
-    }
-  }
-  return ResultMat;
-}
-float (*MatMultiply_AB_total(float a[][3], float b[])){
-  static float ResultMat[3];
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<3){
-      ResultMat[i] = a[i][j]*b[j];
-    }
-  }
-  return ResultMat;
-}
-float (*MatMultiply32(float a[][2], float b[][3]))[3]{
-  static float ResultMat[3][3];
-  for(int i = 0 ; i++; i<3){
-    for(int j =0 ; j++; j<3){
-      for(int k =0; k++; k<2){
-        ResultMat[i][j] += a[i][k]*b[k][j];
-      }
-    }
-  }
-  return ResultMat;
-}
 
-float* Wheelchair::ParameterEstimator(float angle_acc[], int32_t _rpm[], float loadcell_current[]){
-  static float *Parameter;
+float* Wheelchair::ParameterEstimator(float _angle_acc[], float _rpm[], float loadcell_current[]){
+  static float Parameter[3];
+  float *X;
   static float AtA[3][3]={{0,},{0,},{0,}};
   static float AtB[3] = {0,};
   float *pAtB; float (*pAtA)[3]; float (*pinvAtA)[3]; float (*pinvAtA_)[3];
@@ -995,45 +1057,63 @@ float* Wheelchair::ParameterEstimator(float angle_acc[], int32_t _rpm[], float l
   float TorqueInput[2]; static float TorqueInput_accum[2] = {0,0};
   float AtA_[3][3]; float AtB_[3];
 
-  for(int i = 0; i++; i<2){
+  for(int i = 0; i<2; i++){
     TorqueInput[i] = loadcell_current[i]*K_t;
   }
-  A[0][0] = angle_acc[1]; A[0][1] = angle_acc[0];  A[0][2] = _rpm[0]/60.0*2*PI*gz;
-  A[1][0] = angle_acc[0]; A[1][1] = angle_acc[1];  A[1][2] = -_rpm[1]/60.0*2*PI*gz;
+  A[0][0] = _angle_acc[1]; A[0][1] = _angle_acc[0];  A[0][2] = _rpm[0]/60.0*2*PI*gz/180.0*PI;
+  A[1][0] = _angle_acc[0]; A[1][1] = _angle_acc[1];  A[1][2] = -_rpm[1]/60.0*2*PI*gz/180.0*PI;
   TA = Transpose32(A);
   pAtB = MatMultiply_AB(TA, TorqueInput); // 3 by 1 column
-  for(int i = 0; i++; i<3){
+  /*Serial.print("A: ");
+  Serial.println(A[0][0]);
+    Serial.println(A[1][0]);
+      Serial.println(A[0][2]);
+        Serial.println(A[1][2]);*/
+  for(int i = 0; i<3; i++){
     AtB[i] += pAtB[i];
   }
   pAtA = MatMultiply_AtA(A);
-  for(int i = 0; i++; i<3){
-    for(int j = 0; j++; j<3){
+
+  for(int i = 0; i<3; i++){
+    for(int j = 0; j<3; j++){
       AtA[i][j] += pAtA[i][j];
     }
   }
   pinvAtA = InverseMatrix3(AtA);
+
   // B = AX linear regression
-  Parameter = MatMultiply_AB_total(pinvAtA, AtB);
+  X = MatMultiply_AB_total(pinvAtA, AtB);
+  if(print_flag){
+    Serial.print("X: ");
+    Serial.println(*X,9);
+    Serial.println(*(X+1),9);
+    Serial.println(*(X+2),9);
+  }
   // B = AX + C linear regression
   /*
-  for(int i = 0; i++; i<2){
-    for(int j =0; j++; j<3){
+  for(int i = 0; i<2; i++){
+    for(int j =0; j<3; j++){
       A_accum[i][j] += A[i][j];
     }
   }
   TA_accum = Transpose32(A_accum);
-  for(int i = 0; i++;i<2){
+  for(int i = 0; i<2; i++){
     TorqueInput_accum[i] += TorqueInput[i];
   }
   for(int i = 0; i++; i<3){
     AtB_[i] = AtB[i] - MatMultiply_AB(TA_accum, TorqueInput_accum)[i];
-    for(int j = 0; j++; j<3){
+    for(int j = 0; j<3; j++){
       AtA_[i][j] = AtA[i][j] - MatMultiply32(TA_accum, A_accum)[i][j];      
     }
   }
   pinvAtA_ = InverseMatrix3(AtA_);
-  Parameter = MatMultiply_AB_total(pinvAtA_, AtB_);
+  X = MatMultiply_AB_total(pinvAtA_, AtB_);
   */
+  // m, I, d output
+  Parameter[0] = (*(X+0)+*(X+1)-I_WHEEL)/(1.0/2.0*RADIUS_WHEEL*RADIUS_WHEEL);
+  Parameter[1] = (*(X+0)-*(X+1)-I_WHEEL)/(1.0/2.0*RADIUS_WHEEL*RADIUS_WHEEL/DIST_WHEELS/DIST_WHEELS);
+  Parameter[2] = 2.0*DIST_WHEELS*(*(X+2))/(*Parameter - 2.0*M_WHEEL)/RADIUS_WHEEL/RADIUS_WHEEL; 
+ 
   return Parameter;
 }
 
@@ -1044,22 +1124,22 @@ float* Wheelchair::DesiredMotion(float loadcell_current[], float _rpm[]){
   TorqueInput[1] = K_t*loadcell_current[1];
   TorqueInput[0] = K_t*loadcell_current[0];
   // from MATLAB, M^-1*(tau - V*rpm) rotation term
-  //DesiredAcc[1] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(2*DIST_WHEELS*TorqueInput[1] - D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[0] + 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[0]))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(2*DIST_WHEELS*TorqueInput[0] + D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[1] - 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[1]))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
-  //DesiredAcc[0] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(2*DIST_WHEELS*TorqueInput[0] + D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[1] - 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[1]))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(2*DIST_WHEELS*TorqueInput[1] - D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[0] + 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz*rpm[0]))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)); 
+  //DesiredAcc[1] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(2*DIST_WHEELS*TorqueInput[1] - D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[0]/60.0*2*PI + 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[0]/60.0*2*PI))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(2*DIST_WHEELS*TorqueInput[0] + D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[1]/60.0*2*PI - 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[1]/60.0*2*PI))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
+  //DesiredAcc[0] = ((M_BODY*DIST_WHEELS*DIST_WHEELS*RADIUS_WHEEL*RADIUS_WHEEL + 4*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(2*DIST_WHEELS*TorqueInput[0] + D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[1]/60.0*2*PI - 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[1]/60.0*2*PI))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)) + (RADIUS_WHEEL*RADIUS_WHEEL*(- M_BODY*DIST_WHEELS*DIST_WHEELS + I_BODY)*(2*DIST_WHEELS*TorqueInput[1] - D_MASSCENTER*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[0]/60.0*2*PI + 2*D_MASSCENTER*M_WHEEL*RADIUS_WHEEL*RADIUS_WHEEL*gz/180.0*PI*rpm[0]/60.0*2*PI))/(2*DIST_WHEELS*(2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL)); 
   
   // from Matlab, M^-1(tau-k*rpm) resistance
-  desired_acc[1] = (4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*TorqueInput[1] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - 4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*rk1*_rpm[1] - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1] - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0])/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
-  desired_acc[0] = (4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - 4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*rk2*_rpm[0] - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1] - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0])/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
+  desired_acc[1] = (4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*TorqueInput[1] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - 4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*rk1*_rpm[1]/60.0*2*PI - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1]/60.0*2*PI - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0]/60.0*2*PI - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1]/60.0*2*PI + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0]/60.0*2*PI)/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
+  desired_acc[0] = (4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - 4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*rk2*_rpm[0]/60.0*2*PI - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1]/60.0*2*PI - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0]/60.0*2*PI + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1]/60.0*2*PI - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0]/60.0*2*PI)/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
   return desired_acc;
 }
 
-float* Wheelchair::CompensationControl(float _rpm[], float phi_ref, float theta, float *DisturbanceTemp, float desired_acc[]){
+float* Wheelchair::CompensationControl(float _rpm[], float phi_ref, float theta, float *DisturbanceTemp, float *desired_acc){
 	static float ControlTorque[2];
-	float V[2][2] = {{0, RADIUS_WHEEL*RADIUS_WHEEL/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz},{-RADIUS_WHEEL*RADIUS_WHEEL/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz, 0}};
+	float V[2][2] = {{0, RADIUS_WHEEL*RADIUS_WHEEL/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI},{-RADIUS_WHEEL*RADIUS_WHEEL/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI, 0}};
 	float StG[2] = {-1/2*M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL+M_BODY*gravity*sin(phi_ref)*sin(theta)*D_MASSCENTER/DIST_WHEELS*RADIUS_WHEEL,-1/2*M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL-M_BODY*gravity*sin(phi_ref)*sin(theta)*D_MASSCENTER/DIST_WHEELS*RADIUS_WHEEL};
 	float M[2][2] = {{I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY), RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS-I_BODY)},{RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS-I_BODY), I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)}};
-	ControlTorque[1] = V[1][1]*_rpm[1] + V[1][2]*_rpm[0] + StG[0] - DisturbanceTemp[1] + M[1][1]*desired_acc[1]+M[1][2]*desired_acc[0];
-	ControlTorque[0] = V[2][1]*_rpm[1] + V[2][2]*_rpm[0] + StG[1] - DisturbanceTemp[0] + M[2][1]*desired_acc[1]+M[2][2]*desired_acc[0];
+	ControlTorque[1] = V[0][0]*_rpm[1]/60.0*2*PI + V[0][1]*_rpm[0]/60.0*2*PI + StG[0] - DisturbanceTemp[1] + M[0][0]*desired_acc[1]+M[0][1]*desired_acc[0];
+	ControlTorque[0] = V[1][0]*_rpm[1]/60.0*2*PI + V[1][1]*_rpm[0]/60.0*2*PI + StG[1] - DisturbanceTemp[0] + M[1][0]*desired_acc[1]+M[1][1]*desired_acc[0];
 	return ControlTorque;
 }
 
@@ -1229,6 +1309,120 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

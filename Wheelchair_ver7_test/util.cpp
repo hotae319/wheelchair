@@ -2,7 +2,7 @@
 #include "constants.h"
 
 void util_delay_sec(uint16_t sec) {
-  while (sec--) {
+  while (sec--) {    
     delay(1000);
   }
 }
@@ -56,7 +56,7 @@ static float pre_value_vbat = 0, pre_value[4] = {0};
 float util_lpf(float input, uint8_t i) {
   static float lpf_value;
   lpf_value = (tau * pre_value[i] + ts * input) / (tau + ts);
-  pre_value[i] = lpf_value;
+  pre_value[i] = lpf_value;  
   return lpf_value;
 }
 
@@ -144,6 +144,122 @@ uint8_t util_outlier_detect(int16_t arr[], int arrsize) {
 
   return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

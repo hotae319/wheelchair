@@ -8,7 +8,7 @@
 #include "HX711.h"	// loadcell lib
 #include "vescuino_uart_arduino.h"
 #include "vescuino_common.h"
-
+#include "matfunc.h"
 
 float smoothing(float data, float tau, float ts); // peak removal
 float saturation(float data, uint32_t limit); // block under limit
@@ -81,7 +81,7 @@ class Wheelchair {
     //int32_t _tacho_stop[2];
     float _current[2];
     float *DisturbanceWheel;
-    int32_t _rpm[2];
+    float _rpm[2];
     float _accel[2]; // estimation of mass and feedback gain
     float angle_acc[2];
     int32_t _enc_pos[2];
@@ -89,11 +89,11 @@ class Wheelchair {
     float _desire_phi;
     cart_pose _cart_pose;
     imu_pose _imu_pose; 
-    bool RightTouch = false;
-    bool LeftTouch = false;
-    float DesiredAcc[2];
+    float *DesiredAcc;
     float DesiredSpd[2];
     float DesiredPos[2];
+    
+
 
 
     int cal_idx = 0;
@@ -111,11 +111,11 @@ class Wheelchair {
     void _pid_control();
     void _pid_reset();
     void g_compensation_control(float phi_ref, float theta, float *left, float *right, float d=D_MASSCENTER, float m=M_BODY); // compensate the gravity
-    float* CompensationControl(float _rpm[], float phi_ref, float theta, float *disturbance, float desired_acc[]);
+    float* CompensationControl(float _rpm[], float phi_ref, float theta, float *DisturbanceTemp, float *desired_acc);
 
-    float* DynamicObserver(float phi_ref, float theta, int32_t _rpm[]);
-    float* DisturbanceObserver(float phi_ref, float theta, int32_t _rpm[], int32_t _enc_pos[], float angle_acc[]);
-    float* ParameterEstimator(float angle_acc[], int32_t _rpm[], float loadcell_current[]);
+    float* DynamicObserver(float phi_ref, float theta, float _rpm[]);
+    float* DisturbanceObserver(float phi_ref, float theta, float _rpm[], int32_t _enc_pos[], float _angle_acc[]);
+    float* ParameterEstimator(float _angle_acc[], float _rpm[], float loadcell_current[]);
     float* DesiredMotion(float loadcell_current[], float _rpm[]);
 
     void calibration_reset();
@@ -154,6 +154,9 @@ class Wheelchair {
     void auto_calibration();
 
     int is_touched();
+    int LeftTouch();      //JW
+    int MiddleTouch();      //JW
+    int RightTouch();      //JW
 
     void brake_reset();
     void brake_position();
@@ -249,6 +252,122 @@ class Wheelchair {
 
 
 #endif /* Wheelchair_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
