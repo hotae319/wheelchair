@@ -1,9 +1,9 @@
 function [m, I, d, m_simple, I_simple, d_simple] = ParameterEstimator(angle_acc, angle_speed, phi_dot, torque, revision)
 %% General
-M_WHEEL = 6; RADIUS_WHEEL = 0.0825; DIST_WHEELS = 0.342; I_WHEEL = 0.03; 
+M_WHEEL = 8; RADIUS_WHEEL = 0.127; DIST_WHEELS = 0.342; I_WHEEL = 0.03; 
 persistent sigmaAtA sigmaAtB sigmaA sigmaAt sigmaB
 persistent count
-A = [angle_acc(1) angle_acc(2) angle_speed(2)*phi_dot; angle_acc(2) angle_acc(1) -angle_speed(1)*phi_dot];
+A = [angle_acc(1) angle_acc(2) angle_speed(2)*phi_dot; angle_acc(2) angle_acc(1) -angle_speed(1)*phi_dot]
 B = torque;
 if isempty(count)
     count = 0;
@@ -30,8 +30,10 @@ sigmaA = sigmaA + A;
 sigmaAt = sigmaAt + A.';
 sigmaB = sigmaB + B;
 count = count + 1;
+sigmaAtA
+sigmaAtB
 X = inv(sigmaAtA - 1/count*sigmaAt * sigmaA)*(sigmaAtB - 1/count*sigmaAt*sigmaB);
-Xsimple = inv(sigmaAtA)*sigmaAtB;
+Xsimple = inv(sigmaAtA)*sigmaAtB
 %null(sigmaAtA - 1/count*sigmaAt * sigmaA)
 C = 1/count*(sigmaA*X - sigmaB);
 m = (X(1)+X(2)-I_WHEEL)/(1/2*RADIUS_WHEEL*RADIUS_WHEEL);

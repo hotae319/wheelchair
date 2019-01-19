@@ -2,8 +2,8 @@
 % Constant Definition
 global m_ I_ d_ m_simple_ I_simple_ d_simple_ m_sample I_sample d_sample fit_num
 global memory
-RADIUS_WHEEL = 0.0825; DIST_WHEELS = 0.342; 
-LIM = 10;
+RADIUS_WHEEL = 0.127; DIST_WHEELS = 0.342; 
+LIM = 5;
 desire = 0; 
 % Plotting 
 sim('sim_ex_wheelchair');

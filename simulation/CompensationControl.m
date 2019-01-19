@@ -1,7 +1,7 @@
 function control_torque = CompensationControl(wheel_speed, phi_ref, gz, theta, disturbance, desired_acc)
 
-M_BODY = 61+60;M_WHEEL = 6; gravity =9.81; 
-RADIUS_WHEEL = 0.0825; DIST_WHEELS = 0.342; I_WHEEL = 0.03; I_BODY = 5.16+6;
+M_BODY = 61+60;M_WHEEL = 8; gravity =9.81; 
+RADIUS_WHEEL = 0.127; DIST_WHEELS = 0.342; I_WHEEL = 0.03; I_BODY = 5.16+6;
 D_MASSCENTER = 0.239+0.1; 
 
 V = [ 0 RADIUS_WHEEL^2/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz; -RADIUS_WHEEL^2/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz 0];

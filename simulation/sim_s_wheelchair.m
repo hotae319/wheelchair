@@ -58,7 +58,7 @@ sizes.NumSampleTimes = 1;
 sys = simsizes(sizes);
 
 
-x0 = [0;0;0;0;0;0;0;0;0];
+x0 = [0;0;pi/2;0;0;pi/2;0;0;pi/2];
 %x0=[0;0;3*pi/2]; %test for 2017.01.16 inverse kinematics
 
 str = [];
@@ -84,16 +84,16 @@ if isempty(memory)
     memory = zeros(MEMORY_SIZE,8); % 100 data with 6 A 2 B
 end
 %%const
-M_BODY = 61+60;M_WHEEL = 6; gravity =9.81; theta = 0*pi/180;
-RADIUS_WHEEL = 0.0825; DIST_WHEELS = 0.342; I_WHEEL = 0.03; I_BODY = 5.16+6;
+M_BODY = 61+60;M_WHEEL = 8; gravity =9.81; theta = 0*pi/180;
+RADIUS_WHEEL = 0.127; DIST_WHEELS = 0.342; I_WHEEL = 0.03; I_BODY = 5.16+6;
 D_MASSCENTER = 0.239+0.1;
 
 % Contorller // when using gz or phi_ref in control algorithms, add noise
 % or error
 
 %Input current on loadcell
-loadcell_current1 = 8 + 4*rand 
-loadcell_current0 = 8 + 4*rand
+loadcell_current1 = 6 + 0.01*rand; 
+loadcell_current0 = 7 + 0.01*rand;
 
 %% ideal situation
 desired_acc = DesiredMotion([loadcell_current1; loadcell_current0], [x(4);x(5)]);
@@ -103,6 +103,7 @@ gz_d = 1/2*[RADIUS_WHEEL/DIST_WHEELS -RADIUS_WHEEL/DIST_WHEELS]*[x(4);x(5)];
 %Disturbance
 mu = 0.01;  %from wikipedia of rolling resistance
 mu_r = 0.5;
+K_t = 1.4;
 if(abs(x(7))>0.1)
     friction1 = -mu * M_BODY * gravity/2 * RADIUS_WHEEL * sign(x(7));
 else
@@ -120,7 +121,7 @@ DisturbanceTemp0 = friction0+v_resistance0+0.2*(friction0+v_resistance0)*rand; %
 % Control and Dynamics
 rpm1_no_ctrl=x(7); rpm0_no_ctrl=x(8); phi_ref_no_ctrl = x(9);
 gz_no_ctrl = 1/2*[RADIUS_WHEEL/DIST_WHEELS -RADIUS_WHEEL/DIST_WHEELS]*[x(7);x(8)];
-TorqueInput1_no_ctrl= 0.4*loadcell_current1; TorqueInput0_no_ctrl = 0.4*loadcell_current0;
+TorqueInput1_no_ctrl= K_t*loadcell_current1; TorqueInput0_no_ctrl = K_t*loadcell_current0;
 
 acc_no_ctrl = [((M_BODY*DIST_WHEELS^2*RADIUS_WHEEL^2 + 4*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(DisturbanceTemp1 + TorqueInput1_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm0_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL)) + (RADIUS_WHEEL^2*(- M_BODY*DIST_WHEELS^2 + I_BODY)*(DisturbanceTemp0 + TorqueInput0_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm1_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL));
  ((M_BODY*DIST_WHEELS^2*RADIUS_WHEEL^2 + 4*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(DisturbanceTemp0 + TorqueInput0_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm1_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL)) + (RADIUS_WHEEL^2*(- M_BODY*DIST_WHEELS^2 + I_BODY)*(DisturbanceTemp1 + TorqueInput1_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm0_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL))];
@@ -139,8 +140,8 @@ else
 end
 v_resistance1 = -mu_r*x(1);
 v_resistance0 = -mu_r*x(2);
-DisturbanceTemp1 = friction1+v_resistance1+0.2*(friction1+v_resistance1)*rand % 0.2/2 -> 10% randomness
-DisturbanceTemp0 = friction0+v_resistance0+0.2*(friction0+v_resistance0)*rand % max 20%, min 0% randomness
+DisturbanceTemp1 = friction1+v_resistance1+0.2*(friction1+v_resistance1)*rand; % 0.2/2 -> 10% randomness
+DisturbanceTemp0 = friction0+v_resistance0+0.2*(friction0+v_resistance0)*rand; % max 20%, min 0% randomness
 DisturbanceObserver1 = DisturbanceTemp1+0.1*DisturbanceTemp1*randn;  % observation error -> 70%possibility : under 10% error, 
 DisturbanceObserver0 = DisturbanceTemp0+0.1*DisturbanceTemp0*randn; % 25%possibility : 20%error, 5%: over 30% error
 % Control and Dynamics
