@@ -58,7 +58,7 @@ sizes.NumSampleTimes = 1;
 sys = simsizes(sizes);
 
 
-x0 = [0;0;pi/2;0;0;pi/2;0;0;pi/2];
+x0 = [0;0;pi/2;0;0;pi/2;0;0;pi/2]; % with ctrl, desired ,without ctrl
 %x0=[0;0;3*pi/2]; %test for 2017.01.16 inverse kinematics
 
 str = [];
@@ -78,6 +78,16 @@ persistent i
 if isempty(i)
     i = 0;
 end
+if isempty(m_) || i<400
+    m_ = 100;
+end
+if isempty(I_) || i<400
+    I_ = 9;
+end
+if isempty(d_) || i<400
+    d_ = 0.23;
+end
+
 %memory definition
 MEMORY_SIZE = 100;
 if isempty(memory)  
@@ -86,24 +96,26 @@ end
 %%const
 M_BODY = 61+60;M_WHEEL = 8; gravity =9.81; theta = 0*pi/180;
 RADIUS_WHEEL = 0.127; DIST_WHEELS = 0.342; I_WHEEL = 0.03; I_BODY = 5.16+6;
-D_MASSCENTER = 0.239+0.1;
+D_MASSCENTER = 0.239+0.1; D_HANDLE = 0.25;
 
 % Contorller // when using gz or phi_ref in control algorithms, add noise
 % or error
 
 %Input current on loadcell
-loadcell_current1 = 6 + 0.01*rand; 
-loadcell_current0 = 7 + 0.01*rand;
-
+loadcell_current1 = 0.6 + 5*rand; 
+loadcell_current0 = 0.4 + 7*rand;
+K_t = 1.4; K_ld = 1; %loadcell 
+% consider handle push force 
+TorqueInput1_no_ctrl = (0.5*(RADIUS_WHEEL+RADIUS_WHEEL/DIST_WHEELS*D_HANDLE)*K_ld+K_t)*loadcell_current1+0.5*(RADIUS_WHEEL-RADIUS_WHEEL/DIST_WHEELS*D_HANDLE)*K_ld*loadcell_current0; 
+TorqueInput0_no_ctrl = (0.5*(RADIUS_WHEEL+RADIUS_WHEEL/DIST_WHEELS*D_HANDLE)*K_ld+K_t)*loadcell_current0+0.5*(RADIUS_WHEEL-RADIUS_WHEEL/DIST_WHEELS*D_HANDLE)*K_ld*loadcell_current1;
 %% ideal situation
-desired_acc = DesiredMotion([loadcell_current1; loadcell_current0], [x(4);x(5)]);
+desired_acc = DesiredMotion([TorqueInput1_no_ctrl; TorqueInput0_no_ctrl], [x(4);x(5)]);
 gz_d = 1/2*[RADIUS_WHEEL/DIST_WHEELS -RADIUS_WHEEL/DIST_WHEELS]*[x(4);x(5)];
 
 %% give same force to real-circumstance 
 %Disturbance
 mu = 0.01;  %from wikipedia of rolling resistance
 mu_r = 0.5;
-K_t = 1.4;
 if(abs(x(7))>0.1)
     friction1 = -mu * M_BODY * gravity/2 * RADIUS_WHEEL * sign(x(7));
 else
@@ -121,7 +133,6 @@ DisturbanceTemp0 = friction0+v_resistance0+0.2*(friction0+v_resistance0)*rand; %
 % Control and Dynamics
 rpm1_no_ctrl=x(7); rpm0_no_ctrl=x(8); phi_ref_no_ctrl = x(9);
 gz_no_ctrl = 1/2*[RADIUS_WHEEL/DIST_WHEELS -RADIUS_WHEEL/DIST_WHEELS]*[x(7);x(8)];
-TorqueInput1_no_ctrl= K_t*loadcell_current1; TorqueInput0_no_ctrl = K_t*loadcell_current0;
 
 acc_no_ctrl = [((M_BODY*DIST_WHEELS^2*RADIUS_WHEEL^2 + 4*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(DisturbanceTemp1 + TorqueInput1_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm0_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL)) + (RADIUS_WHEEL^2*(- M_BODY*DIST_WHEELS^2 + I_BODY)*(DisturbanceTemp0 + TorqueInput0_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm1_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL));
  ((M_BODY*DIST_WHEELS^2*RADIUS_WHEEL^2 + 4*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(DisturbanceTemp0 + TorqueInput0_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm1_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL)) + (RADIUS_WHEEL^2*(- M_BODY*DIST_WHEELS^2 + I_BODY)*(DisturbanceTemp1 + TorqueInput1_no_ctrl + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref_no_ctrl)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL^2*gz_no_ctrl*rpm0_no_ctrl*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref_no_ctrl)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL))];
@@ -147,15 +158,15 @@ DisturbanceObserver0 = DisturbanceTemp0+0.1*DisturbanceTemp0*randn; % 25%possibi
 % Control and Dynamics
 rpm1=x(1); rpm0=x(2); phi_ref = x(3);
 gz = 1/2*[RADIUS_WHEEL/DIST_WHEELS -RADIUS_WHEEL/DIST_WHEELS]*[x(1);x(2)];
-control_torque = CompensationControl([x(1);x(2)], x(3), gz, theta, [DisturbanceObserver1;DisturbanceObserver0], desired_acc)
+control_torque = CompensationControl([x(1);x(2)], x(3), gz, theta, [DisturbanceObserver1;DisturbanceObserver0], desired_acc, m_, I_, d_);
 TorqueInput1 = control_torque(1); TorqueInput0 = control_torque(2);
 acc = [((M_BODY*DIST_WHEELS^2*RADIUS_WHEEL^2 + 4*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(DisturbanceTemp1 + TorqueInput1 + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL^2*gz*rpm0*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL)) + (RADIUS_WHEEL^2*(- M_BODY*DIST_WHEELS^2 + I_BODY)*(DisturbanceTemp0 + TorqueInput0 + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL^2*gz*rpm1*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL));
  ((M_BODY*DIST_WHEELS^2*RADIUS_WHEEL^2 + 4*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(DisturbanceTemp0 + TorqueInput0 + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 + (D_MASSCENTER*RADIUS_WHEEL^2*gz*rpm1*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) + (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL)) + (RADIUS_WHEEL^2*(- M_BODY*DIST_WHEELS^2 + I_BODY)*(DisturbanceTemp1 + TorqueInput1 + (M_BODY*RADIUS_WHEEL*gravity*cos(phi_ref)*sin(theta))/2 - (D_MASSCENTER*RADIUS_WHEEL^2*gz*rpm0*(M_BODY - 2*M_WHEEL))/(2*DIST_WHEELS) - (D_MASSCENTER*M_BODY*RADIUS_WHEEL*gravity*sin(phi_ref)*sin(theta))/(2*DIST_WHEELS)))/((2*I_WHEEL*DIST_WHEELS^2 + I_BODY*RADIUS_WHEEL^2)*(M_BODY*RADIUS_WHEEL^2 + 2*I_WHEEL))];
 
 i = i+1;
 if (theta == 0 && i<=300+MEMORY_SIZE && i>300) 
-    memory(i-300,1:8) = [acc(1) acc(2) x(2)*gz acc(2) acc(1) -x(1)*gz TorqueInput1+DisturbanceObserver1 TorqueInput0+DisturbanceObserver0];
-    [m,I,d, m_simple, I_simple, d_simple]= ParameterEstimator(acc, [x(1);x(2)], gz, [TorqueInput1;TorqueInput0],0);
+    memory(i-300,1:8) = [acc(1) acc(2) x(2)*gz acc(2) acc(1) -x(1)*gz TorqueInput1 TorqueInput0];
+    [m,I,d, m_simple, I_simple, d_simple]= ParameterEstimator(acc, [x(1);x(2)], gz, [TorqueInput1+DisturbanceTemp1;TorqueInput0+DisturbanceTemp0],0);
      m_ = m; I_ = I; d_ = d;
      m_simple_ = m_simple; I_simple_= I_simple; d_simple_=d_simple;
 end
@@ -190,7 +201,6 @@ if (i == 400)
     [m_sample, I_sample, d_sample] = Mcalculator(X_sample(:,max_index));
     fit_num = fit_count_max;
 end
-
 sys=[acc;gz;desired_acc;gz_d;acc_no_ctrl;gz_no_ctrl]; 
 % sys = zeros(8,1);
 
