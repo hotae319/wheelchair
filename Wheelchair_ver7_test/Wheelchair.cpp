@@ -114,12 +114,12 @@ void Wheelchair::run() {
   static int sleep_count = 0;
   static bool sleep_tick = false;
   int i;
+  int dummy;
 
-    Serial.print("current_real: ");
-    Serial.print(loadcell_current[1]);  
-    Serial.print(","); 
-    Serial.println(loadcell_current[0]);   
+
+  
   if(print_flag){  
+    /*
     Serial.print("state: ");
     Serial.println(state);        
     Serial.print("currentR, currentL, vesc_currentR, vesc_currentL, encR, encL, rotation, inclination: ");
@@ -137,7 +137,7 @@ void Wheelchair::run() {
     Serial.print(",");
     Serial.print(this->_cart_pose.rotation);
     Serial.print(",");
-    Serial.println(_cart_pose.inclination);
+    Serial.println(_cart_pose.inclination*180.0/PI);
     Serial.print("state, right_accel, voltage, is_touched:");
     Serial.print(state);
     Serial.print(",");
@@ -159,6 +159,7 @@ void Wheelchair::run() {
     Serial.println("N");
     Serial.print("voltage");
     Serial.println(analogRead(A8));
+    */
     
     //print_flag = false;
 
@@ -240,7 +241,7 @@ void Wheelchair::run() {
           //g_compensation_control(_imu_pose._phi_ref/180.0f*PI, _imu_pose._theta/180.0f*PI, &left_current, &right_current);
         }   
 
-        DisturbanceWheel = DynamicObserver(_imu_pose._phi_ref, _imu_pose._theta, _rpm);
+        DisturbanceWheel = DynamicObserver(phi_ref, theta, _rpm);
         Distemp = DisturbanceObserver(phi_ref, theta, _rpm, _enc_pos, _accel);
         DesiredAcc = DesiredMotion(loadcell_current, _rpm);
    		  Ctorque = CompensationControl(_rpm, phi_ref, theta, DisturbanceWheel, DesiredAcc);
@@ -251,6 +252,7 @@ void Wheelchair::run() {
         //midParam = ParameterEstimator(angle_acc, _rpm, loadcell_current);
         midParam = ParameterEstimator(_accel, _rpm, loadcell_current);
         if(print_flag){
+          
           Serial.print("DisturbanceWheel R,L/only DOB R,L: ");
           Serial.print(DisturbanceWheel[1]);
           Serial.print(",");
@@ -279,6 +281,9 @@ void Wheelchair::run() {
           Serial.println(left_current);
           Serial.print("gz: ");
           Serial.println(gz);
+          Serial.print("theta:");
+          Serial.print(theta);
+          
         }
         //delete[] DisturbanceWheel;
         //DisturbanceWheel = nullptr;
@@ -389,7 +394,7 @@ void Wheelchair::run() {
           break;
         }
         else if(is_touched() && RightTouch()){
-          next_state = RIGHT;
+          next_state = RIGHT;                        
         }
         else if(is_touched() && LeftTouch()){
           next_state = LEFT;
@@ -454,7 +459,7 @@ void Wheelchair::run() {
         if (is_touched() && MiddleTouch()) {
           next_state = RUN;
         } 
-        else if (time_out > 2500) {
+        else if (time_out > 2000) {
           next_state = BRAKE_2;
         }
         else if(is_touched() && RightTouch()){
@@ -512,7 +517,7 @@ void Wheelchair::run() {
   }
 
 int Wheelchair::LeftTouch(){       //JW
-  if(analogRead(TOUCH_L)>600){
+  if(analogRead(TOUCH_L)>400){
     return 1;
   }
   else{
@@ -521,23 +526,23 @@ int Wheelchair::LeftTouch(){       //JW
 }
 
 int Wheelchair::RightTouch(){       //JW
-  if(analogRead(TOUCH_R)>600){
+  if(analogRead(TOUCH_R)>400){
     return 1;
   }
   else{
     return 0;
   }
+
 }
 
 int Wheelchair::MiddleTouch(){       //JW
-  //Serial.print("touchM: ");
-  //Serial.println(analogRead(TOUCH_M));
-  if(analogRead(TOUCH_M)>750){
+  if(analogRead(TOUCH_M)>550){
     return 1;
   }
   else{
     return 0;
   }
+
 }
 
 int Wheelchair::is_touched() {
@@ -570,6 +575,7 @@ void Wheelchair::_update_states() {
   static float xy=0; 
   static float xsquare=0;
 
+
   // two states(digital) battery(analog)
   _get_power_state();
   _get_battery_v();
@@ -579,17 +585,7 @@ void Wheelchair::_update_states() {
   _vesc_2->get_values();
 
   t_now = millis();  
-  if(print_flag){
-          Serial.print("rpm,pre_rpm: ");
-          Serial.print(_rpm[0]);
-          Serial.print(",");
-          Serial.print(pre_rpm[0]);
-          Serial.print(",");
-          Serial.print(_rpm[1]);
-          Serial.print(",");
-          Serial.println(pre_rpm[1]);
-          print_flag = false;
-        };
+
   for (int i = 0; i < 2; i++) {
     this->_current[i] 	= _vesc_ctrl->current[i];
     if(i==0){
@@ -598,6 +594,7 @@ void Wheelchair::_update_states() {
     }
     else{
       pre_rpm[i] = this->_rpm[i]; 
+
     }
     pre_enc_pos[i] = this->_enc_pos[i];
     this->_rpm[i] = _vesc_ctrl->erpm[i]/POLE_PAIR;
@@ -622,10 +619,20 @@ void Wheelchair::_update_states() {
     j++;
   }
 
+    // Change of left 0's parameter's sign
+
+  this->_current[0] *= -1;
+  //pre_enc_pos[0] *= -1;
+  this->_rpm[0] *= -1;
+  //this->_enc_pos[0] *= -1;
+  this->_accel[0] *= -1;
+
   _get_imu_state(); // get imu data, store the data on the global variable
   // pose estimation update
   
   this->_cart_pose.inclination = _imu_pose._theta; // from imu data 
+  
+
   //this->_cart_pose.rotation = float((this->_enc_pos[0]-this->_enc_pos[1])/DIST_WHEELS)*RADIUS_WHEEL; //
   float err1 = _enc_pos[1]-pre_enc_pos[1];
   float err2 = _enc_pos[0]-pre_enc_pos[0];  
@@ -638,11 +645,6 @@ void Wheelchair::_update_states() {
   odometry = (err1+err2)/DIST_WHEELS*RADIUS_WHEEL;
      // because  left and right wheel has different direction
 
-
-  if(print_flag){
-  Serial.print("odometry:");
-  Serial.println(odometry); // right
-  }
   correction = 0.98*(_imu_pose._phi-_imu_pose_phi_pre) + 0.02*odometry;  
   if(_cart_pose.inclination<10){
     this->_cart_pose.rotation =_imu_pose_phi_pre + correction;
@@ -653,21 +655,15 @@ void Wheelchair::_update_states() {
     _imu_pose_phi_pre = _imu_pose._phi_ref; 
   }
   this->loadcell_update();
-  
-  // Change of left 0's parameter's sign
-  loadcell_current[0] *= -1;
-  this->_current[0] *= -1;
-  //pre_enc_pos[0] *= -1;
-  this->_rpm[0] *= -1;
-  //this->_enc_pos[0] *= -1;
-  this->_accel[0] *= -1;
+    loadcell_current[0] *= -1;
+
 }
 
 void Wheelchair::_get_imu_state() {
 	static uint16_t imu_count = 0; 
   mpu9250_wheelchair_act(_accel[0],_accel[1]); 
   if(imu_count>200){
- 	_imu_pose._theta = get_theta();
+ 	_imu_pose._theta = get_theta();  
   }
   else{
   	_imu_pose._theta = atan(sqrtf(ax*ax+ay*ay)/abs(az));
@@ -1084,10 +1080,12 @@ float* Wheelchair::ParameterEstimator(float _angle_acc[], float _rpm[], float lo
   // B = AX linear regression
   X = MatMultiply_AB_total(pinvAtA, AtB);
   if(print_flag){
+    /*
     Serial.print("X: ");
     Serial.println(*X,9);
     Serial.println(*(X+1),9);
     Serial.println(*(X+2),9);
+    */
   }
   // B = AX + C linear regression
   /*
@@ -1309,6 +1307,52 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

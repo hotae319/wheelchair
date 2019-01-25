@@ -31,6 +31,7 @@
 #include <SPI.h>
 #include <Wire.h>   
 #include <Arduino.h>
+#include "constants.h"
 //#include <Adafruit_GFX.h>
 //#include <Adafruit_PCD8544.h>
 
@@ -274,6 +275,7 @@ uint32_t lastUpdate = 0, firstUpdate = 0; // used to calculate integration inter
 uint32_t Now = 0;        // used to calculate integration interval
 
 float ax, ay, az, gx, gy, gz, mx, my, mz; // variables to hold latest sensor data values 
+float axr, ayr, azr;
 float q[4] = {1.0f, 0.0f, 0.0f, 0.0f};    // vector to hold quaternion
 float eInt[3] = {0.0f, 0.0f, 0.0f};       // vector to hold integral error for Mahony method
 
@@ -1031,9 +1033,9 @@ void compensation_filter(float ax, float ay, float az, float gx, float gy, float
    gyro_pitch = comp_pitch + gy*dt;   
    gyro_phi_ref = comp_phi_ref + gz*dt;
 
-   gyro_roll = gyro_roll - int((gyro_roll+180)/360)*360; // set in range from -pi ~ pi
-   gyro_pitch = gyro_pitch - int((gyro_pitch+180)/360)*360;   
-   gyro_phi_ref = gyro_phi_ref - int((gyro_phi_ref+180)/360)*360;
+   gyro_roll = gyro_roll - int((gyro_roll+180.0)/360.0)*360.0; // set in range from -pi ~ pi
+   gyro_pitch = gyro_pitch - int((gyro_pitch+180.0)/360.0)*360.0;   
+   gyro_phi_ref = gyro_phi_ref - int((gyro_phi_ref+180.0)/360.0)*360.0;
 
    gyro_roll *= PI/180.0f;
    gyro_pitch *= PI/180.0f;
@@ -1065,24 +1067,25 @@ void mpu9250_wheelchair_setup(){
   */
  // Read the WHO_AM_I register, this is a good test of communication
   byte c = readByte(MPU9250_ADDRESS, WHO_AM_I_MPU9250);  // Read WHO_AM_I register for MPU-9250
-  Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX); Serial.print(" I should be "); Serial.println(0x71, HEX);
+  //Serial.print("MPU9250 "); Serial.print("I AM "); Serial.print(c, HEX); Serial.print(" I should be "); Serial.println(0x71, HEX);
 
   if (c == 0x71) // WHO_AM_I should always be 0x68
   {  
     Serial.println("MPU9250 is online...");
     
     MPU9250SelfTest(SelfTest); // Start by performing self test and reporting values
+    /*
     Serial.print("x-axis self test: acceleration trim within : "); Serial.print(SelfTest[0],1); Serial.println("% of factory value");
     Serial.print("y-axis self test: acceleration trim within : "); Serial.print(SelfTest[1],1); Serial.println("% of factory value");
     Serial.print("z-axis self test: acceleration trim within : "); Serial.print(SelfTest[2],1); Serial.println("% of factory value");
     Serial.print("x-axis self test: gyration trim within : "); Serial.print(SelfTest[3],1); Serial.println("% of factory value");
     Serial.print("y-axis self test: gyration trim within : "); Serial.print(SelfTest[4],1); Serial.println("% of factory value");
     Serial.print("z-axis self test: gyration trim within : "); Serial.print(SelfTest[5],1); Serial.println("% of factory value");
- 
+ */
     calibrateMPU9250(gyroBias, accelBias); // Calibrate gyro and accelerometers, load biases in bias registers
 
     initMPU9250(); 
-    Serial.println("MPU9250 initialized for active data mode...."); // Initialize device for active mode read of acclerometer, gyroscope, and temperature
+    //Serial.println("MPU9250 initialized for active data mode...."); // Initialize device for active mode read of acclerometer, gyroscope, and temperature
   
     // Read the WHO_AM_I register of the magnetometer, this is a good test of communication
     //byte d = readByte(AK8963_ADDRESS, AK8963_WHO_AM_I);  // Read WHO_AM_I register for AK8963
@@ -1093,9 +1096,11 @@ void mpu9250_wheelchair_setup(){
   
   if(SerialDebug) {
     //  Serial.println("Calibration values: ");
+    /*
     Serial.print("X-Axis sensitivity adjustment value "); Serial.println(magCalibration[0], 2);
     Serial.print("Y-Axis sensitivity adjustment value "); Serial.println(magCalibration[1], 2);
     Serial.print("Z-Axis sensitivity adjustment value "); Serial.println(magCalibration[2], 2);
+    */
   }
 
 }
@@ -1184,7 +1189,7 @@ MadgwickQuaternionUpdate_6050(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.
 compensation_filter(ax, ay, az, gx, gy, gz);
     if (!AHRS) {
     delt_t = millis() - count;
-    if(delt_t > 500) {
+    if(delt_t > 100) {
     /*  
     if(SerialDebug) {
     // Print acceleration values in milligs!
@@ -1218,13 +1223,14 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     // Serial print and/or display at 0.5 s rate independent of data rates
     delt_t = millis() - count;
 
-    if (delt_t > 500) { // update LCD once per half-second independent of read rate
+    if (delt_t > 100) { // update LCD once per half-second independent of read rate
       print_flag = true;
     if(SerialDebug) {
-      /*
+      
     Serial.print("ax = "); Serial.print((int)1000*ax);  
     Serial.print(" ay = "); Serial.print((int)1000*ay); 
     Serial.print(" az = "); Serial.print((int)1000*az); Serial.println(" mg");
+    /*
     Serial.print("gx = "); Serial.print( gx, 2); 
     Serial.print(" gy = "); Serial.print( gy, 2); 
     Serial.print(" gz = "); Serial.print( gz, 2); Serial.println(" deg/s");
@@ -1301,6 +1307,8 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     //yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
     roll  *= 180.0f / PI;
      
+    axr = 9.81*ax + RADIUS_WHEEL*(accel0+accel1)/2.0;
+    axr = axr/9.81;
     if(SerialDebug) {
       /*
     Serial.print("Yaw, Pitch, Roll: ");
@@ -1310,22 +1318,24 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     Serial.print(", ");
     Serial.println(roll, 2);
     */
-    Serial.print("theta, phi, phi_ref:");
+    /*
+    Serial.print(accel0, 2);
+    Serial.print(", ");
+    Serial.print(accel1, 2);
+    Serial.print(", ");
     Serial.print(theta, 2);
     Serial.print(", ");
-    Serial.print(phi, 2);
+    Serial.print(atan(sqrtf(ax*ax+ay*ay)/abs(az))*180.0f/PI, 2);
     Serial.print(",");
-    Serial.println(phi_ref,2);
-    Serial.print("comp_roll, comp_pitch, comp_theta, comp_phi_ref: ");
-    /*Serial.print(comp_roll, 2);
-    Serial.print(", ");
-    Serial.print(comp_pitch, 2);
-    Serial.print(", ");*/
+    Serial.print(atan(sqrtf(axr*axr+ay*ay)/abs(az))*180.0f/PI, 2);
+    Serial.print(",");
+    Serial.print(phi_ref,2);
+    Serial.print(",");
     Serial.print(comp_theta, 2);
     Serial.print(", ");
     Serial.println(comp_phi_ref, 2);
-
-    Serial.print("rate = "); Serial.print((float)sumCount/sum, 2); Serial.println(" Hz");
+*/
+    //Serial.print("rate = "); Serial.print((float)sumCount/sum, 2); Serial.println(" Hz");
     fq_test = sumCount/sum;
     }
       roll *= PI/180.0f;
@@ -1388,7 +1398,6 @@ float get_yaw(){
 	return yaw;
 }
 float get_theta(){
-
   return theta;
 }
 float get_phi(){
@@ -1401,6 +1410,52 @@ float get_phi_ref(){
 }
 
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

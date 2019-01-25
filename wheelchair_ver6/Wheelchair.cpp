@@ -171,6 +171,8 @@ void Wheelchair::run() {
 
       case BRAKE_2:
         _vesc_on();
+        _pid_reset();
+        stop_t = millis();
         brake_timer = millis();
         _enc_pos_stop[0] =  _vesc_ctrl->enc_pos[1];
         _enc_pos_stop[1] =  _vesc_ctrl->enc_pos[2];
@@ -178,8 +180,7 @@ void Wheelchair::run() {
 
       case BRAKE_3:
         _vesc_on();
-        _pid_reset();
-        stop_t = millis();
+
         _enc_pos_stop[0] =  _vesc_ctrl->enc_pos[1];
         _enc_pos_stop[1] =  _vesc_ctrl->enc_pos[2];
         break;
@@ -247,6 +248,9 @@ void Wheelchair::run() {
       case BRAKE_2:
         set_LED(VBAT);
         brake_position();        
+        if (abs(_current[0]) >= 3 || abs(_current[1]) >= 3) {
+          brake_timer = millis();  // if force is still applied, brake_timer extends
+        }
         break;
 
       case BRAKE_3:
@@ -442,6 +446,8 @@ void Wheelchair::_update_states() {
     pre_enc_pos[i] = this->_enc_pos[i];
     this->_rpm[i] = _vesc_ctrl->erpm[i+1]/POLE_PAIR;
     this->_enc_pos[i] = _vesc_ctrl->enc_pos[i+1];
+    Serial.print("enc_pos: ");
+    Serial.println(_enc_pos[i]);
     if( _rpm[i] != pre_rpm[i]){
       this->_accel[i] = float((this->_rpm[i] - pre_rpm[i])/(t_now-t_pre)*1000.0/60*2*PI); //rad/s^2
       /*
@@ -1268,6 +1274,7 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
 
 
 

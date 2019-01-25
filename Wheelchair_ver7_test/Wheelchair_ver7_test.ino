@@ -61,15 +61,10 @@ VESC_CONTROL* _vesc_ctrl;
 
 void setup()
 {
-    //pinMode(RESET_PIN, INPUT);
+  //pinMode(RESET_PIN, INPUT);
   //digitalWrite(RESET_PIN, HIGH);
   //pinMode(RESET_PIN, OUTPUT);
   Serial.begin(115200);
-  Serial.print("reset is problem!!");
-  // reset settinge
-
-  
-  Serial.println("testest");   
   delay(200);
   //pinMode(RESET_PIN, OUTPUT);
   //digitalWrite(RESET_PIN, LOW); 
@@ -81,9 +76,8 @@ void setup()
   
   bldc_interface_set_rx_fw_func(bldc_fw_received);
   bldc_interface_set_rx_value_func(bldc_val_received);
-  Serial.print("setup before");
   Cart.setup();
-  
+  /*
  char *heapend = sbrk(0);
   register char * stack_ptr asm ("sp");
   struct mallinfo mi = mallinfo();
@@ -95,7 +89,7 @@ void setup()
   Serial.println(ramend - stack_ptr);
   Serial.print("My guess at free mem: n"); 
   Serial.println(stack_ptr - heapend + mi.fordblks);
-
+*/
   delay(100);
 }
 
@@ -143,6 +137,52 @@ void bldc_val_received(mc_values *val)
   /* ---------------------------- */
 }
 //=============================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

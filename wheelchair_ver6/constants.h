@@ -40,14 +40,14 @@ const int ST_COUNT = 20;
 const float ST_INTENTION = 4;
 
 const float I_WHEEL = 0.03;
-const float I_BODY = 11;
+const float I_BODY = 5.16;
 const float M_BODY = 61;
 const float M_WHEEL = 8; //mc = m_body-2m_wheel
 const float D_MASSCENTER = 0.239; 
 const float DIST_WHEELS = 0.342; //2*L = 0.684
 const float RADIUS_WHEEL = 0.0825; // 0.127
 
-const float I_BODY_d = 11;
+const float I_BODY_d = 5.16;
 const float M_BODY_d = 61;
 const float D_MASSCENTER_d = 0.239; 
 
@@ -149,6 +149,7 @@ const unsigned short crc_table[256] = { 0x0000,
 
 
 #endif /* CONSTANTS_H_ */
+
 
 
 
