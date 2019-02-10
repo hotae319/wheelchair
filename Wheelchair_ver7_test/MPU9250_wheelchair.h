@@ -228,7 +228,7 @@ enum Mscale {
 
 // Specify sensor full scale
 uint8_t Gscale = GFS_250DPS;
-uint8_t Ascale = AFS_2G;
+uint8_t Ascale = AFS_8G;
 uint8_t Mscale = MFS_16BITS; // Choose either 14-bit or 16-bit magnetometer resolution
 uint8_t Mmode = 0x02;        // 2 for 8 Hz, 6 for 100 Hz continuous magnetometer data read
 float aRes, gRes, mRes;    // scale resolutions per LSB for the sensors
@@ -1013,13 +1013,13 @@ void compensation_filter(float ax, float ay, float az, float gx, float gy, float
    static uint32_t last_time;
    float dt;
    static int count = 0;
-   float alpha = 0.96;
+   float alpha = 0.98;
    dt = (millis()-last_time)/1000.0;
    last_time = millis();
    // accelerometer
-   acc_roll = atan(ay/sqrtf(ax*ax+az*az));
-   acc_pitch = atan(ax/sqrtf(ay*ay+az*az));
-   acc_phi_ref = atan2(-ay,-ax);
+   acc_roll = atan(ay/sqrtf(ax*ax+az*az))/PI*180.0f;
+   acc_pitch = atan(ax/sqrtf(ay*ay+az*az))/PI*180.0f;
+   acc_phi_ref = atan2(-ay,-ax)/PI*180.0f;
 
    if(count == 0){
     comp_roll = acc_roll;
@@ -1037,21 +1037,18 @@ void compensation_filter(float ax, float ay, float az, float gx, float gy, float
    gyro_pitch = gyro_pitch - int((gyro_pitch+180.0)/360.0)*360.0;   
    gyro_phi_ref = gyro_phi_ref - int((gyro_phi_ref+180.0)/360.0)*360.0;
 
-   gyro_roll *= PI/180.0f;
-   gyro_pitch *= PI/180.0f;
-   gyro_phi_ref *= PI/180.0f;
-
    //atan(sqrtf(ax*ax+ay*ay)/abs(az));
    // complementary
    comp_roll = alpha * gyro_roll + (1-alpha) * acc_roll;
    comp_pitch = alpha * gyro_pitch + (1-alpha) * acc_pitch;
    comp_phi_ref = alpha * gyro_phi_ref + (1-alpha) * acc_phi_ref;
-   comp_theta = acos(cos(comp_pitch)*cos(comp_roll));
-   
+   comp_theta = acos(cos(comp_pitch/180.0f*PI)*cos(comp_roll/180.0f*PI))/PI*180.0f;
+   /*
    comp_roll *= 180.0f / PI;
    comp_pitch *= 180.0f / PI;
    comp_phi_ref *= 180.0f / PI;
    comp_theta *= 180.0f / PI;
+   */
 }
 
 //**************************************************************
@@ -1186,7 +1183,11 @@ void mpu9250_wheelchair_act(float accel0, float accel1){
 //  MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f,  my,  mx, mz);
   //MahonyQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f, my, mx, mz);
 MadgwickQuaternionUpdate_6050(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f);
-compensation_filter(ax, ay, az, gx, gy, gz);
+
+     
+    axr = 9.81*ax - RADIUS_WHEEL*(accel0+accel1)/2.0;
+    axr = axr/9.81;
+compensation_filter(axr, ay, az, gx, gy, gz);
     if (!AHRS) {
     delt_t = millis() - count;
     if(delt_t > 100) {
@@ -1223,13 +1224,14 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     // Serial print and/or display at 0.5 s rate independent of data rates
     delt_t = millis() - count;
 
-    if (delt_t > 100) { // update LCD once per half-second independent of read rate
+    if (delt_t > 200) { // update LCD once per half-second independent of read rate
       print_flag = true;
     if(SerialDebug) {
-      
+    /*  
     Serial.print("ax = "); Serial.print((int)1000*ax);  
     Serial.print(" ay = "); Serial.print((int)1000*ay); 
     Serial.print(" az = "); Serial.print((int)1000*az); Serial.println(" mg");
+    */
     /*
     Serial.print("gx = "); Serial.print( gx, 2); 
     Serial.print(" gy = "); Serial.print( gy, 2); 
@@ -1306,9 +1308,7 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     yaw   *= 180.0f / PI; 
     //yaw   -= 13.8; // Declination at Danville, California is 13 degrees 48 minutes and 47 seconds on 2014-04-04
     roll  *= 180.0f / PI;
-     
-    axr = 9.81*ax + RADIUS_WHEEL*(accel0+accel1)/2.0;
-    axr = axr/9.81;
+
     if(SerialDebug) {
       /*
     Serial.print("Yaw, Pitch, Roll: ");
@@ -1317,33 +1317,42 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     Serial.print(pitch, 2);
     Serial.print(", ");
     Serial.println(roll, 2);
-    */
-    /*
     Serial.print(accel0, 2);
     Serial.print(", ");
     Serial.print(accel1, 2);
     Serial.print(", ");
-    Serial.print(theta, 2);
+    */
+    /*
+    Serial.print(1000.0*ay);  
     Serial.print(", ");
-    Serial.print(atan(sqrtf(ax*ax+ay*ay)/abs(az))*180.0f/PI, 2);
+    Serial.print(gx); 
+    Serial.print(", ");
+    Serial.print(gy); 
+    Serial.print(", ");
+    Serial.print(gz); 
+    Serial.print(", ");
+    Serial.print(accel0, 2);
+    Serial.print(", ");
+    Serial.print(accel1, 2);
+    Serial.print(", ");
+    Serial.print(comp_roll);
     Serial.print(",");
-    Serial.print(atan(sqrtf(axr*axr+ay*ay)/abs(az))*180.0f/PI, 2);
+    Serial.print(comp_pitch);
     Serial.print(",");
-    Serial.print(phi_ref,2);
+    Serial.print(1000.0*axr, 2);
+    Serial.print(",");
+    Serial.print(1000.0*ax,2);
     Serial.print(",");
     Serial.print(comp_theta, 2);
     Serial.print(", ");
-    Serial.println(comp_phi_ref, 2);
-*/
+    Serial.println(theta, 2);
+    */
+
     //Serial.print("rate = "); Serial.print((float)sumCount/sum, 2); Serial.println(" Hz");
     fq_test = sumCount/sum;
     }
-      roll *= PI/180.0f;
-      pitch *= PI/180.0f;
-      yaw *= PI/180.0f; 
-      theta *= PI/180.0f;
-      phi *= PI/180.0f;
-      phi_ref *= PI/180.0f;
+
+
     // With these settings the filter is updating at a ~145 Hz rate using the Madgwick scheme and 
     // >200 Hz using the Mahony scheme even though the display refreshes at only 2 Hz.
     // The filter update rate is determined mostly by the mathematical steps in the respective algorithms, 
@@ -1365,7 +1374,18 @@ compensation_filter(ax, ay, az, gx, gy, gz);
     j_reset++; 
     
     }
-    }// imu data update
+    }
+
+    // imu data update
+          roll *= PI/180.0f;
+      pitch *= PI/180.0f;
+      yaw *= PI/180.0f; 
+      theta *= PI/180.0f;
+      phi *= PI/180.0f;
+      phi_ref *= PI/180.0f;
+      comp_theta *= PI/180.0f;
+      comp_phi_ref *= PI/180.0f;
+      
   if(fq_test<7 && j_reset>6){    
     fq_test = 100; j_reset=0;
     
@@ -1410,6 +1430,209 @@ float get_phi_ref(){
 }
 
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

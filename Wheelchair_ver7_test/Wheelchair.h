@@ -81,8 +81,10 @@ class Wheelchair {
     //int32_t _tacho_stop[2];
     float _current[2];
     float *DisturbanceWheel;
+    float pre_rpm[2];
     float _rpm[2];
     float _accel[2]; // estimation of mass and feedback gain
+    float pre_accel[2];
     float angle_acc[2];
     int32_t _enc_pos[2];
     int32_t _enc_pos_stop[2];
@@ -93,7 +95,7 @@ class Wheelchair {
     float DesiredSpd[2];
     float DesiredPos[2];
     
-
+    float aug_gain = 1;
 
 
     int cal_idx = 0;
@@ -132,7 +134,9 @@ class Wheelchair {
     int16_t loadcell_value_raw_calibration[LOADCELL_COUNT][50];
     
     float loadcell_current[2];
+    float loadcell_current_hand[2];
     float loadcell_current_pre[2]; // current previous value
+    float loadcell_current_pre_hand[2];
     //float control_current[2]; // compensation or control current
 
 
@@ -252,6 +256,209 @@ class Wheelchair {
 
 
 #endif /* Wheelchair_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

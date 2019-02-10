@@ -20,7 +20,7 @@ const int16_t LOADCELL_RAW_ZERO_NOISE_THRES = 200;
 const int16_t LOADCELL_RAW_NOISE_THRES = 5000;
 
 const float LOADCELL_CURRENT_GAIN_F = 0.04;   //0.020
-const float LOADCELL_CURRENT_GAIN_B = 0.08;   //0.017
+const float LOADCELL_CURRENT_GAIN_B = 0.06;   //0.017
 
 const float LOADCELL_CURRENT_DEADZONE = 0.5;
 
@@ -41,14 +41,14 @@ const float ST_INTENTION = 4;
 
 const float I_WHEEL = 0.03;
 const float I_BODY = 5.16; // Ic+mcd^2+2mwL^2+2Im, 5.16 + 4.5~5.0(behind term)
-const float M_BODY = 60.34; // m = mc+2mw -> 52.5+7.84 = 60.34
+const float M_BODY = 52.5; // m = mc+2mw -> 44.66+7.84 = 52.5
 const float M_WHEEL = 3.92; //mc = m_body-2m_wheel
 const float D_MASSCENTER = 0.239; 
 const float DIST_WHEELS = 0.342; //2*L = 0.684
 const float RADIUS_WHEEL = 0.127; //0.0825; // 0.127
 
 const float I_BODY_d = 5.16;
-const float M_BODY_d = 61;
+const float M_BODY_d = 52.5;
 const float D_MASSCENTER_d = 0.239; 
 
 enum cart_state_e {
@@ -152,6 +152,209 @@ const unsigned short crc_table[256] = { 0x0000,
 
 
 #endif /* CONSTANTS_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
