@@ -268,6 +268,7 @@ uint32_t delt_t = 0; // used to control display output rate
 uint32_t count = 0, sumCount = 0; // used to control display output rate
 float pitch, yaw, roll;
 float comp_pitch, comp_roll, comp_theta, comp_phi_ref;
+float comp_pitch1, comp_roll1, comp_theta1, comp_phi_ref1;
 float theta_s, theta_c, theta, phi_s, phi_c, phi, phi_ref;
 
 float deltat = 0.0f, sum = 0.0f;        // integration interval for both filter schemes
@@ -283,6 +284,18 @@ bool print_flag = false; // for print at the same time as imu print
 //===================================================================================================================
 //====== Set of useful function to access acceleration. gyroscope, magnetometer, and temperature data
 //===================================================================================================================
+
+float sgn_mpu(float a){
+  if(a>0){
+    return 1;
+  }
+  else if(a<0){
+    return -1;
+  }
+  else{
+    return 0;
+  }
+}
 
         // Wire1.h read and write protocols
         void writeByte(uint8_t address, uint8_t subAddress, uint8_t data)
@@ -1051,6 +1064,70 @@ void compensation_filter(float ax, float ay, float az, float gx, float gy, float
    */
 }
 
+void compensation_filter1(float ax, float ay, float az, float gx, float gy, float gz){
+   static float gyro_roll=0, gyro_pitch=0, gyro_phi_ref=0;
+   static float acc_roll, acc_pitch, acc_phi_ref;
+   static uint32_t last_time;
+   float dt;
+   static int count = 0;
+   float alpha = 0.98;
+
+   dt = (millis()-last_time)/1000.0;
+   if(print_flag){
+    //Serial.print("dt: ");
+    //Serial.println(dt);
+   }
+   last_time = millis();
+   if(print_flag){
+    //Serial.print("last_time: ");
+    //Serial.println(last_time);
+   }
+   // accelerometer
+   acc_roll = atan(ay/sqrtf(ax*ax+az*az)); // -pi/2 ~ pi/2
+   acc_pitch = atan(ax/sqrtf(ay*ay+az*az));
+   acc_phi_ref = atan2(-ay,-ax);
+
+   if(count == 0){
+    comp_roll1 = acc_roll;
+    comp_pitch1 = acc_pitch;
+    comp_phi_ref1 = acc_phi_ref;
+    count ++;
+   }
+
+   // gyroscope
+   gyro_roll = comp_roll1 + gx*dt;
+   gyro_pitch = comp_pitch1 + gy*dt;   
+   gyro_phi_ref = comp_phi_ref1 + gz*dt;
+   if(print_flag){
+    //Serial.print("gyro_roll_pre:");
+    //Serial.println(gyro_roll);
+   }
+
+   gyro_roll = gyro_roll - int((gyro_roll+180)/360)*360; // set in range from -pi ~ pi
+   gyro_pitch = gyro_pitch - int((gyro_pitch+180)/360)*360;   
+   gyro_phi_ref = gyro_phi_ref - int((gyro_phi_ref+180)/360)*360;
+   if(print_flag){
+    //Serial.print("gyro_roll_after:");
+    //Serial.println(gyro_roll);
+   }
+
+   gyro_roll *= PI/180.0f;
+   gyro_pitch *= PI/180.0f;
+   gyro_phi_ref *= PI/180.0f;
+
+   //atan(sqrtf(ax*ax+ay*ay)/abs(az));
+   // complementary
+   comp_roll1 = alpha * gyro_roll + (1-alpha) * acc_roll;
+   comp_pitch1 = alpha * gyro_pitch + (1-alpha) * acc_pitch;
+   comp_phi_ref1 = alpha * gyro_phi_ref + (1-alpha) * acc_phi_ref;
+   comp_theta1 = acos(cos(comp_pitch1)*cos(comp_roll1));
+   
+   comp_roll1 *= 180.0f / PI;
+   comp_pitch1 *= 180.0f / PI;
+   comp_phi_ref1 *= 180.0f / PI;
+   comp_theta1 *= 180.0f / PI;
+}
+
 //**************************************************************
 
 void mpu9250_wheelchair_setup(){
@@ -1111,11 +1188,23 @@ void mpu9250_wheelchair_setup(){
 
 }
 
-void mpu9250_wheelchair_act(float accel0, float accel1){
+void mpu9250_wheelchair_act(float accel0, float accel1, float rpm0, float rpm1, int state){
 
   static float ax_bias = 0;
   static float ay_bias = 0;
   static int j = 0;
+  static float pre_gz = 0;
+  static float pre_ax;
+  static float pre_ay;
+  uint32_t delt;
+  static uint32_t t_pre = 0;
+  if(t_pre == 0){
+    delt = 15;
+  }
+  else{
+    delt = millis()-t_pre;
+  }
+  t_pre = millis();
 	  // If intPin goes high, all data registers have new data
   if (readByte(MPU9250_ADDRESS, INT_STATUS) & 0x01) {  // On interrupt, check if data ready interrupt
     readAccelData(accelCount);  // Read the x/y/z adc values
@@ -1187,7 +1276,35 @@ MadgwickQuaternionUpdate_6050(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.
      
     axr = 9.81*ax - RADIUS_WHEEL*(accel0+accel1)/2.0;
     axr = axr/9.81;
-compensation_filter(axr, ay, az, gx, gy, gz);
+
+    //brake1
+    if(state == 1){
+      ayr = 9.81*ay - (rpm1+rpm0)/2.0/60.0*2.0*PI*RADIUS_WHEEL*(gz/180.0f*PI);
+      ayr = ayr/9.81;
+    }
+    // idling
+    else if(abs(accel0)>70 || abs(accel1)>70 || abs(rpm0)>120 || abs(rpm1)>120){ 
+        axr = 9.81*ax - 0.03*(gz-pre_gz)/180.0f*PI/delt*1000.0f+(0.05*(gz-pre_gz)/180.0f*PI/delt*1000.0f-0.15*(gz/180.0f*PI)*(gz/180.0f*PI)*sgn_mpu(gz));
+        axr = axr/9.81;
+        ayr = 9.81*ay -0.03*(gz/180.0f*PI)*(gz/180.0f*PI) - (0.05*(gz/180.0f*PI)*(gz/180.0f*PI)*sgn_mpu(gz) + 0.15*(gz-pre_gz)/180.0f*PI/delt*1000.0f);
+        ayr = ayr/9.81;
+    }
+    // rotating
+    else if(abs(rpm0+rpm1)<50 && abs(gz-pre_gz)>2){
+      ayr = 9.81*ay - 0.15*(gz-pre_gz)/180.0f*PI/delt*1000.0f - 0.05*(gz/180.0f*PI)*(gz/180.0f*PI)*sgn_mpu(gz)- (rpm1+rpm0)/2.0/60.0*2.0*PI*RADIUS_WHEEL*(gz/180.0f*PI);; 
+      ayr = ayr/9.81;
+    }
+    // general move or large radius rotations
+    else{
+      ayr = 9.81*ay - (rpm1+rpm0)/2.0/60.0*2.0*PI*RADIUS_WHEEL*(gz/180.0f*PI);
+      ayr = ayr/9.81;
+    }
+    compensation_filter(axr, ayr, az, gx, gy, gz);
+    compensation_filter1(ax, ay, az, gx, gy, gz);
+    
+    pre_gz = gz;
+    pre_ay = ayr;
+    pre_ax = axr;
     if (!AHRS) {
     delt_t = millis() - count;
     if(delt_t > 100) {
@@ -1224,7 +1341,7 @@ compensation_filter(axr, ay, az, gx, gy, gz);
     // Serial print and/or display at 0.5 s rate independent of data rates
     delt_t = millis() - count;
 
-    if (delt_t > 200) { // update LCD once per half-second independent of read rate
+    if (delt_t > 25) { // update LCD once per half-second independent of read rate
       print_flag = true;
     if(SerialDebug) {
     /*  
@@ -1322,7 +1439,15 @@ compensation_filter(axr, ay, az, gx, gy, gz);
     Serial.print(accel1, 2);
     Serial.print(", ");
     */
-    /*
+      /*
+    Serial.print(1000.0*az);
+    Serial.print(",");
+    Serial.print(1000.0*axr, 2);
+    Serial.print(",");
+    Serial.print(1000.0*ax,2);
+    Serial.print(",");
+    Serial.print(1000.0*ayr);
+    Serial.print(",");
     Serial.print(1000.0*ay);  
     Serial.print(", ");
     Serial.print(gx); 
@@ -1331,21 +1456,25 @@ compensation_filter(axr, ay, az, gx, gy, gz);
     Serial.print(", ");
     Serial.print(gz); 
     Serial.print(", ");
-    Serial.print(accel0, 2);
+    Serial.print(accel0, 2);  
     Serial.print(", ");
     Serial.print(accel1, 2);
+    Serial.print(", ");
+    Serial.print(rpm0, 2);
+    Serial.print(", ");
+    Serial.print(rpm1, 2);
     Serial.print(", ");
     Serial.print(comp_roll);
     Serial.print(",");
     Serial.print(comp_pitch);
     Serial.print(",");
-    Serial.print(1000.0*axr, 2);
-    Serial.print(",");
-    Serial.print(1000.0*ax,2);
-    Serial.print(",");
     Serial.print(comp_theta, 2);
     Serial.print(", ");
-    Serial.println(theta, 2);
+    Serial.print(comp_roll1);
+    Serial.print(",");
+    Serial.print(comp_pitch1);
+    Serial.print(",");
+    Serial.println(comp_theta1, 2);
     */
 
     //Serial.print("rate = "); Serial.print((float)sumCount/sum, 2); Serial.println(" Hz");
@@ -1376,8 +1505,9 @@ compensation_filter(axr, ay, az, gx, gy, gz);
     }
     }
 
+
     // imu data update
-          roll *= PI/180.0f;
+      roll *= PI/180.0f;
       pitch *= PI/180.0f;
       yaw *= PI/180.0f; 
       theta *= PI/180.0f;
@@ -1386,15 +1516,15 @@ compensation_filter(axr, ay, az, gx, gy, gz);
       comp_theta *= PI/180.0f;
       comp_phi_ref *= PI/180.0f;
       
-  if(fq_test<7 && j_reset>6){    
-    fq_test = 100; j_reset=0;
-    
+  if(fq_test<7 && j_reset>6){   
+    fq_test = 100; j_reset=0;    
     Serial.println("reset start");
     delay(500);
     pinMode(RESET_PIN, OUTPUT);
     digitalWrite(RESET_PIN, LOW);
   } 
 }
+
 /*
 float get_gx(){
   return gx;
@@ -1430,6 +1560,56 @@ float get_phi_ref(){
 }
 
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
