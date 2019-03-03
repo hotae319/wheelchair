@@ -2,10 +2,6 @@
 #include "flash.h"
 #include "MPU9250_wheelchair.h"
 
-#include <Adafruit_NeoPixel.h>
-#ifdef __AVR__
-  #include <avr/power.h>
-#endif
 #define PIN            12
 
 int _touch_count = 0;
@@ -40,13 +36,8 @@ float sgn(float a){
   }
 }
 
-
-
-Adafruit_NeoPixel pixels = Adafruit_NeoPixel(144, PIN, NEO_GRB + NEO_KHZ800);
-
 void Wheelchair::setup() {
 
-  pixels.begin();	
   //Wire1.begin(); 
   pinMode(I_PIN_POWER, INPUT);
   pinMode(I_PIN_BUTTON, INPUT);
@@ -127,6 +118,49 @@ void Wheelchair::run() {
   Serial.print(",");
   Serial.println(analogRead(TOUCH_M));
 */
+  /*
+          Serial.print(1000.0*az);
+        Serial.print(",");
+        Serial.print(1000.0*axr, 2);
+        Serial.print(",");
+        Serial.print(1000.0*ax,2);
+        Serial.print(",");
+        Serial.print(1000.0*ayr);
+        Serial.print(",");
+        Serial.print(1000.0*ay);  
+        Serial.print(", ");
+        Serial.print(gx); 
+        Serial.print(", ");
+        Serial.print(gy); 
+        Serial.print(", ");
+        Serial.print(gz); 
+        Serial.print(",");
+        Serial.print(comp_roll);
+        Serial.print(",");
+        Serial.print(comp_pitch);
+        Serial.print(",");
+        Serial.print(comp_theta*180.0f/PI, 2);
+        Serial.print(", ");
+        Serial.print(comp_roll1);
+        Serial.print(",");
+        Serial.print(comp_pitch1);
+        Serial.print(",");
+        Serial.println(comp_theta1, 2);
+  */
+  Serial.print(loadcell_current_hand[1]);
+  Serial.print(",");
+  Serial.print(loadcell_current_hand[0]);
+  Serial.print(",");
+  Serial.print(is_touched());
+  Serial.print(",");
+  Serial.print(_touch_count);
+  Serial.print(",");
+  Serial.print(brake_timer);
+  Serial.print(",");
+  Serial.print(state);
+  Serial.print(",");
+  Serial.println(analogRead(TOUCH_M));
+  
   if(print_flag){  
     /*
     Serial.print("state: ");
@@ -246,6 +280,7 @@ void Wheelchair::run() {
         set_LED(VBAT);
         float left_current=0, right_current=0;
         float *Ctorque; float* Distemp; float *midParam;
+        float *pidtorque;
         if(_cart_pose.inclination>10){
           //g_compensation_control(_imu_pose._phi_ref/180.0f*PI, _imu_pose._theta/180.0f*PI, &left_current, &right_current);
         }   
@@ -254,13 +289,21 @@ void Wheelchair::run() {
         Distemp = DisturbanceObserver(comp_phi_ref, comp_theta, _rpm, _enc_pos, _accel);
         DesiredAcc = DesiredMotion(loadcell_current, _rpm);
    		  Ctorque = CompensationControl(_rpm, comp_phi_ref, comp_theta, DisturbanceWheel, DesiredAcc);
+        pidtorque = TrackingPid(DesiredAcc, _rpm, _accel);
+
         _vesc_2->set_current(aug_gain*loadcell_current[1]);
         _vesc_1->set_current(-aug_gain*loadcell_current[0]);
         //_vesc_2->set_current(0);
         //_vesc_1->set_current(0);
+        
+        //pid tracking
+        //_vesc_2->set_current(aug_gain*loadcell_current[1]+pidtorque[1]/0.63);
+        //_vesc_1->set_current(-aug_gain*loadcell_current[0]-pidtorque[0]/0.63);
+
         //midParam = ParameterEstimator(angle_acc, _rpm, loadcell_current);
         midParam = ParameterEstimator(pre_accel, _rpm, loadcell_current_pre);
-        
+        // M_BODY = midParam[0]; I_BODY = midParam[1]; D_MASSCENTER = pmidParam[2];
+        /*
         Serial.print(loadcell_current[1]);
         Serial.print(",");
         Serial.print(loadcell_current[0]);
@@ -290,9 +333,36 @@ void Wheelchair::run() {
         Serial.print(Ctorque[0]);
         Serial.print(",");
         Serial.print(comp_theta*180.0f/PI);
+
         Serial.print(",");
-        Serial.println(gz);
-        
+        Serial.print(1000.0*az);
+        Serial.print(",");
+        Serial.print(1000.0*axr, 2);
+        Serial.print(",");
+        Serial.print(1000.0*ax,2);
+        Serial.print(",");
+        Serial.print(1000.0*ayr);
+        Serial.print(",");
+        Serial.print(1000.0*ay);  
+        Serial.print(", ");
+        Serial.print(gx); 
+        Serial.print(", ");
+        Serial.print(gy); 
+        Serial.print(", ");
+        Serial.print(gz); 
+        Serial.print(",");
+        Serial.print(comp_roll);
+        Serial.print(",");
+        Serial.print(comp_pitch);
+        Serial.print(",");
+        Serial.print(comp_theta, 2);
+        Serial.print(", ");
+        Serial.print(comp_roll1);
+        Serial.print(",");
+        Serial.print(comp_pitch1);
+        Serial.print(",");
+        Serial.println(comp_theta1, 2);
+        */
         if(print_flag){
           /*
           Serial.print("DisturbanceWheel R,L/only DOB R,L: ");
@@ -398,7 +468,7 @@ void Wheelchair::run() {
           break;     
         }
       case RUN:
-        if (is_touched() && analogRead(TOUCH_M)>290) {
+        if (is_touched() ) { //&& analogRead(TOUCH_M)>290
           brake_timer = millis();
           break;
         }
@@ -550,14 +620,14 @@ int Wheelchair::MiddleTouch(){       //JW
     return 1;
   }
   else{
-    return 0;
+    return 1;
   }
 
 }
 
 int Wheelchair::is_touched() {
-  if (abs(loadcell_current[0]) >= LOADCELL_CURRENT_DEADZONE ||
-      abs(loadcell_current[1]) >= LOADCELL_CURRENT_DEADZONE) {
+  if (abs(loadcell_current_hand[0]) >= LOADCELL_CURRENT_DEADZONE ||
+      abs(loadcell_current_hand[1]) >= LOADCELL_CURRENT_DEADZONE) {
       _touch_count++;
   }
   else {
@@ -1203,7 +1273,7 @@ float* Wheelchair::ParameterEstimator(float _angle_acc[], float _rpm[], float lo
   static int n = 0;
   n++;
   for(int i = 0; i<2; i++){
-    TorqueInput[i] = loadcell_current[i]*(K_t*aug_gain+0.11);
+    TorqueInput[i] = loadcell_current[i]*(K_t*aug_gain+0.12)-(0.654)*sgn(_rpm[i])-1.0/90.0*_rpm[i];;
   }
   A[0][0] = _angle_acc[1]; A[0][1] = _angle_acc[0];  A[0][2] = _rpm[0]/60.0*2*PI*gz/180.0*PI;
   A[1][0] = _angle_acc[0]; A[1][1] = _angle_acc[1];  A[1][2] = -_rpm[1]/60.0*2*PI*gz/180.0*PI;
@@ -1303,12 +1373,22 @@ float* Wheelchair::DesiredMotion(float loadcell_current[], float _rpm[]){
 
 float* Wheelchair::CompensationControl(float _rpm[], float phi_ref, float theta, float *DisturbanceTemp, float *desired_acc){
 	static float ControlTorque[2];
+  float gain = 0.1;
 	float V[2][2] = {{0, RADIUS_WHEEL*RADIUS_WHEEL/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI},{-RADIUS_WHEEL*RADIUS_WHEEL/(2*DIST_WHEELS)*(M_BODY-2*M_WHEEL)*D_MASSCENTER*gz/180.0*PI, 0}};
 	float StG[2] = {-1/2*M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL+M_BODY*gravity*sin(phi_ref)*sin(theta)*D_MASSCENTER/DIST_WHEELS*RADIUS_WHEEL,-1/2*M_BODY*gravity*cos(phi_ref)*sin(theta)*RADIUS_WHEEL-M_BODY*gravity*sin(phi_ref)*sin(theta)*D_MASSCENTER/DIST_WHEELS*RADIUS_WHEEL};
 	float M[2][2] = {{I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY), RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS-I_BODY)},{RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS-I_BODY), I_WHEEL+RADIUS_WHEEL*RADIUS_WHEEL/(4*DIST_WHEELS*DIST_WHEELS)*(M_BODY*DIST_WHEELS*DIST_WHEELS+I_BODY)}};
-	ControlTorque[1] = V[0][0]*_rpm[1]/60.0*2*PI + V[0][1]*_rpm[0]/60.0*2*PI + StG[0] - DisturbanceTemp[1] + M[0][0]*desired_acc[1]+M[0][1]*desired_acc[0];
-	ControlTorque[0] = V[1][0]*_rpm[1]/60.0*2*PI + V[1][1]*_rpm[0]/60.0*2*PI + StG[1] - DisturbanceTemp[0] + M[1][0]*desired_acc[1]+M[1][1]*desired_acc[0];
+	// StG + V*mu + M*mu_d dot
+  ControlTorque[1] = V[0][0]*_rpm[1]/60.0*2*PI + V[0][1]*_rpm[0]/60.0*2*PI + StG[0] - DisturbanceTemp[1] + M[0][0]*desired_acc[1]+M[0][1]*desired_acc[0] - gain*(_rpm[1]-DesiredSpd[1]);
+	ControlTorque[0] = V[1][0]*_rpm[1]/60.0*2*PI + V[1][1]*_rpm[0]/60.0*2*PI + StG[1] - DisturbanceTemp[0] + M[1][0]*desired_acc[1]+M[1][1]*desired_acc[0] - gain*(_rpm[0]-DesiredSpd[0]);
 	return ControlTorque;
+}
+
+float* Wheelchair::TrackingPid(float *desired_acc, float _rpm[], float _accel[]){
+  static float ControlTorque[2];
+  float p_gain = 0.05; float d_gain = 0.001;
+  ControlTorque[1] = -p_gain*(_rpm[1]-DesiredSpd[1]) - d_gain*(_accel[1]-desired_acc[1]);
+  ControlTorque[0] = -p_gain*(_rpm[0]-DesiredSpd[0]) - d_gain*(_accel[0]-desired_acc[0]);
+  return ControlTorque;
 }
 
 void Wheelchair::brake_position() {
@@ -1477,6 +1557,25 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -119,6 +119,7 @@ class Wheelchair {
     float* DisturbanceObserver(float phi_ref, float theta, float _rpm[], int32_t _enc_pos[], float _angle_acc[]);
     float* ParameterEstimator(float _angle_acc[], float _rpm[], float loadcell_current[]);
     float* DesiredMotion(float loadcell_current[], float _rpm[]);
+    float* TrackingPid(float *desired_acc, float _rpm[], float _accel[]);
 
     void calibration_reset();
     void calibration_charge();
@@ -256,6 +257,25 @@ class Wheelchair {
 
 
 #endif /* Wheelchair_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

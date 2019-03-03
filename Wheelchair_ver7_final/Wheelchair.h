@@ -150,7 +150,7 @@ class Wheelchair {
     float loadcell_current_pre[2]; // current previous value
     float loadcell_current_pre_hand[2];
     float revised_current[2];
-    float revised_current_pre[2];
+    float revised_current_pre[2] = {0,0};
     //float control_current[2]; // compensation or control current
 
 
@@ -275,6 +275,23 @@ class Wheelchair {
 
 
 #endif /* Wheelchair_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
