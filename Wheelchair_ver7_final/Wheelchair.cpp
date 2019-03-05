@@ -391,8 +391,8 @@ void Wheelchair::run() {
           revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain; 
 
           if(millis()-brake_timer>180){
-            revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[1]/0.63/aug_gain; 
-            revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[0]/0.63/aug_gain;
+            //revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/500.0)*pidtorque[1]/0.63/aug_gain; 
+            //revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/500.0)*pidtorque[0]/0.63/aug_gain;
             if(comp_theta>5.0 && abs(_rpm[1])<5.0 && abs(_rpm[0])<5.0){
               revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;  
               revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain;
@@ -562,11 +562,12 @@ void Wheelchair::run() {
         //pid tracking
         revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;  
         revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain; 
+        //if too many gap, far away
         if(millis()-brake_timer>180){
-          revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[1]/0.63/aug_gain; 
-          revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[0]/0.63/aug_gain;
+          revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/500.0)*pidtorque[1]/0.63/aug_gain; 
+          revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/500.0)*pidtorque[0]/0.63/aug_gain;
           // on the slope, not move, but touch
-          if(comp_theta>5.0 && abs(_rpm[1])<5.0 && abs(_rpm[0])<5.0){
+          if(comp_theta>5.0 && abs(gz)<15){
             revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;  
             revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain;
           }
@@ -680,8 +681,8 @@ void Wheelchair::run() {
             _vesc_1->set_current(-revised_current[0]);
           } 
           else{ // straight
-            revised_current[1] = (aug_gain+0.2)*loadcell_current[1]+aug_gain*loadcell_current[0]+(HAND_GAIN+0.4)/K_t*loadcell_current[0];
-            revised_current[0] = aug_gain*loadcell_current[0];
+            revised_current[1] = (aug_gain)*loadcell_current[1]+aug_gain*loadcell_current[0]+(HAND_GAIN+0.4)/K_t*loadcell_current[0];
+            revised_current[0] = (aug_gain-0.1)*loadcell_current[0];
             if(abs(revised_current[1]-revised_current_pre[1])>4){
               revised_current[1] = revised_current_pre[1] + 4*sgn(revised_current[1]-revised_current_pre[1]);
             }
@@ -1002,12 +1003,14 @@ bool Wheelchair::MiddleTouch(){       //JW
 }
 
 bool Wheelchair::MiddleTouchWeak(){   
-  static int8_t pre_touch = 0;
+  static int16_t pre_touch = 0;
   static uint8_t brake_count = 0;
-  if(abs(analogRead(TOUCH_M)-pre_touch)<=5){
+  int gap;
+  gap = analogRead(TOUCH_M)-pre_touch;
+  if(abs(gap)<=5){
     brake_count++;
   }
-  else if(abs(analogRead(TOUCH_M)-pre_touch)>5 && abs(analogRead(TOUCH_M)-pre_touch)<10){
+  else if(abs(gap)>5 && abs(gap)<10){
     if(brake_count>0){
       brake_count--;
     }
@@ -1016,13 +1019,15 @@ bool Wheelchair::MiddleTouchWeak(){
     brake_count = 0;
   }
   pre_touch = analogRead(TOUCH_M);
-  if(brake_count>12){
+  
+  if(brake_count>40){
     brake_count = 0;
-    return 1;
+    return 0;
   }
   else{
     return 0;
   }
+  
 }
 
 
@@ -1880,11 +1885,11 @@ float* Wheelchair::DesiredMotion(float loadcell_current[], float loadcell_curren
 
   TorqueInput[1] = K_t*aug_gain*loadcell_current[1]+HAND_GAIN*loadcell_current_hand[1]-(0.454)*sgn(DesiredSpd[1])-1.0/180.0*DesiredSpd[1]; // with 0.02 mu friction const
   TorqueInput[0] = K_t*aug_gain*loadcell_current[0]+HAND_GAIN*loadcell_current_hand[0]-(0.454)*sgn(DesiredSpd[0])-1.0/180.0*DesiredSpd[0];
-
-  if(TorqueInput[1]*loadcell_current_hand[1]<0){
+  
+  if(TorqueInput[1]*loadcell_current_hand[1]<0 && abs(loadcell_current_hand[1])>LOADCELL_CURRENT_DEADZONE){
     TorqueInput[1] = 0;
   }
-  if(TorqueInput[0]*loadcell_current_hand[0]<0){
+  if(TorqueInput[0]*loadcell_current_hand[0]<0 && abs(loadcell_current_hand[1])>LOADCELL_CURRENT_DEADZONE){
     TorqueInput[0] = 0;
   }
 
@@ -1897,14 +1902,15 @@ float* Wheelchair::DesiredMotion(float loadcell_current[], float loadcell_curren
   //DesiredSpd[1] = _rpm[1] + desired_acc[1]*0.018/2/PI*60.0; 
   //DesiredSpd[0] = _rpm[0] + desired_acc[0]*0.018/2/PI*60.0;   
   
-  DesiredSpd[1] += desired_acc[1]*0.018/2/PI*60.0; 
-  DesiredSpd[0] += desired_acc[0]*0.018/2/PI*60.0;
+  DesiredSpd[1] += desired_acc[1]*0.017/2/PI*60.0; 
+  DesiredSpd[0] += desired_acc[0]*0.017/2/PI*60.0;
   if(abs(DesiredSpd[1])>VEL_MAX){
     DesiredSpd[1] = VEL_MAX*sgn(DesiredSpd[1]);
   }   
   if(abs(DesiredSpd[0])>VEL_MAX){
     DesiredSpd[0] = VEL_MAX*sgn(DesiredSpd[0]);
   } 
+
   
   // from Matlab, M^-1(tau-k*rpm) resistance
   //desired_acc[1] = (4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*TorqueInput[1] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - 4*DIST_WHEELS*DIST_WHEELS*I_WHEEL*rk1*_rpm[1]/60.0*2*PI - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1]/60.0*2*PI - I_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0]/60.0*2*PI - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[0] + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*TorqueInput[1] - DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk1*_rpm[1]/60.0*2*PI + DIST_WHEELS*DIST_WHEELS*M_BODY*RADIUS_WHEEL*RADIUS_WHEEL*rk2*_rpm[0]/60.0*2*PI)/((2*I_WHEEL*DIST_WHEELS*DIST_WHEELS + I_BODY*RADIUS_WHEEL*RADIUS_WHEEL)*(M_BODY*RADIUS_WHEEL*RADIUS_WHEEL + 2*I_WHEEL));
@@ -2146,6 +2152,24 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
