@@ -389,6 +389,16 @@ void Wheelchair::run() {
         else{
           revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;
           revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain; 
+
+          if(millis()-brake_timer>180){
+            revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[1]/0.63/aug_gain; 
+            revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[0]/0.63/aug_gain;
+            if(comp_theta>5.0 && abs(_rpm[1])<5.0 && abs(_rpm[0])<5.0){
+              revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;  
+              revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain;
+            }
+          }
+
           if(abs(aug_gain*revised_current[1])>LOADCELL_CURRENT_MAX){
             revised_current[1] = LOADCELL_CURRENT_MAX*sgn(aug_gain*revised_current[1])/aug_gain;
           }
@@ -553,8 +563,13 @@ void Wheelchair::run() {
         revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;  
         revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain; 
         if(millis()-brake_timer>180){
-          revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[1]/0.63/aug_gain; ;
-          revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[0]/0.63/aug_gain; ;
+          revised_current[1] = loadcell_current[1] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[1]/0.63/aug_gain; 
+          revised_current[0] = loadcell_current[0] + (0.7-(millis()-brake_timer)/300.0)*pidtorque[0]/0.63/aug_gain;
+          // on the slope, not move, but touch
+          if(comp_theta>5.0 && abs(_rpm[1])<5.0 && abs(_rpm[0])<5.0){
+            revised_current[1] = loadcell_current[1] + pidtorque[1]/0.63/aug_gain;  
+            revised_current[0] = loadcell_current[0] + pidtorque[0]/0.63/aug_gain;
+          }
         }
 
         if(abs(aug_gain*revised_current[1])>LOADCELL_CURRENT_MAX){
@@ -639,8 +654,8 @@ void Wheelchair::run() {
           }
           if((loadcell_current_hand[0]<-1 && loadcell_current_hand[1]>1)|| (loadcell_current_hand[0]>0.5 && loadcell_current_hand[0]+2<loadcell_current_hand[1])){
           //left turn
-            revised_current[1] = (aug_gain+0.2)*loadcell_current[1]-aug_gain*loadcell_current[0]-(HAND_GAIN+0.2)/K_t*loadcell_current_hand[0];
-            revised_current[0] = aug_gain*loadcell_current[0]-(aug_gain+0.1)*loadcell_current_hand[1];
+            revised_current[1] = (revised_current_pre[1] + (aug_gain+0.2)*loadcell_current[1]-aug_gain*loadcell_current[0]-(HAND_GAIN+0.2)/K_t*loadcell_current[0])/2.0;
+            revised_current[0] = (revised_current_pre[0] + aug_gain*loadcell_current[0]-(aug_gain+0.1)*loadcell_current[1])/2.0;
             if(abs(revised_current[1]-revised_current_pre[1])>4){
               revised_current[1] = revised_current_pre[1] + 4*sgn(revised_current[1]-revised_current_pre[1]);
             }
@@ -656,7 +671,7 @@ void Wheelchair::run() {
           }
           else if(loadcell_current_hand[0]>loadcell_current_hand[1]+3.5){
           // turn right
-            revised_current[1] = (aug_gain+0.2)*loadcell_current[1]+HAND_GAIN/K_t*loadcell_current_hand[0];
+            revised_current[1] = aug_gain*loadcell_current[1]+HAND_GAIN/K_t*loadcell_current_hand[0];
             revised_current[0] = aug_gain*loadcell_current[0];
             
             //revised_current[1] = (0.1*revised_current[1] + 0.015*((aug_gain+0.2)*loadcell_current[1]+HAND_GAIN/K_t*loadcell_current_hand[0]))/0.115;
@@ -665,7 +680,7 @@ void Wheelchair::run() {
             _vesc_1->set_current(-revised_current[0]);
           } 
           else{ // straight
-            revised_current[1] = (aug_gain+0.2)*loadcell_current[1]+aug_gain*loadcell_current[0]+2*(HAND_GAIN+0.3)/K_t*loadcell_current_hand[0];
+            revised_current[1] = (aug_gain+0.2)*loadcell_current[1]+aug_gain*loadcell_current[0]+(HAND_GAIN+0.4)/K_t*loadcell_current[0];
             revised_current[0] = aug_gain*loadcell_current[0];
             if(abs(revised_current[1]-revised_current_pre[1])>4){
               revised_current[1] = revised_current_pre[1] + 4*sgn(revised_current[1]-revised_current_pre[1]);
@@ -771,6 +786,9 @@ void Wheelchair::run() {
         if(is_touched() && LeftTouch()){
           next_state = LEFT;
         }
+        else if(MiddleTouchWeak()){
+          next_state = BRAKE_1;
+        }
         else if (is_touched() && !LeftTouch() && !SIT_DOWNTouch()) {
           brake_timer = millis();
           if(digitalRead(TIPPING_LEVER)){
@@ -781,7 +799,7 @@ void Wheelchair::run() {
         else if(digitalRead(TIPPING_LEVER)){
           next_state = CLIMB;
         }
-        else if(is_touched() && MiddleTouchWeak() && SIT_DOWNTouch()){
+        else if(is_touched() && MiddleTouch() && SIT_DOWNTouch()){
           next_state = SIT_DOWN;   
         }
           // possible to change the condition due to distinguishing start with this
@@ -813,9 +831,13 @@ void Wheelchair::run() {
         else if(digitalRead(TIPPING_LEVER)){
           next_state = CLIMB;
         }
-        else if (is_touched() && MiddleTouchWeak() && !SIT_DOWNTouch()){
+        else if (is_touched() && MiddleTouch() && !SIT_DOWNTouch()){
            next_state = RUN;
            break; 
+        }
+        else if(MiddleTouchWeak()){
+          next_state = BRAKE_1;
+          break;
         }
         else if(is_touched() && SIT_DOWNTouch() && !LeftTouch()){
           next_state = SIT_DOWN;
@@ -837,7 +859,7 @@ void Wheelchair::run() {
             next_state = SIT_DOWN;
             break;
         }
-        else if(is_touched() ){
+        else if(is_touched()){
           next_state = LEFT;
           brake_timer = millis();
           break;
@@ -952,7 +974,7 @@ void Wheelchair::run() {
 }
 
 int Wheelchair::LeftTouch(){       //JW  
-  if(analogRead(TOUCH_L)>180){
+  if(analogRead(TOUCH_L)>240){
     return 1;
   }
   else{
@@ -979,8 +1001,23 @@ bool Wheelchair::MiddleTouch(){       //JW
   }
 }
 
-bool Wheelchair::MiddleTouchWeak(){       
-  if(analogRead(TOUCH_M)>250){
+bool Wheelchair::MiddleTouchWeak(){   
+  static int8_t pre_touch = 0;
+  static uint8_t brake_count = 0;
+  if(abs(analogRead(TOUCH_M)-pre_touch)<=5){
+    brake_count++;
+  }
+  else if(abs(analogRead(TOUCH_M)-pre_touch)>5 && abs(analogRead(TOUCH_M)-pre_touch)<10){
+    if(brake_count>0){
+      brake_count--;
+    }
+  }
+  else{
+    brake_count = 0;
+  }
+  pre_touch = analogRead(TOUCH_M);
+  if(brake_count>12){
+    brake_count = 0;
     return 1;
   }
   else{
@@ -1226,6 +1263,8 @@ void Wheelchair::_get_imu_state() {
 void Wheelchair::loadcell_update() {
   static uint8_t vibration_count = 0;
   static short SignCount = 0;
+  uint16_t SignGap = 0;
+  static uint32_t pre_time = 0;
   static uint8_t RelayCount = 0;
   static int Rcount = 7;
   static int Lcount = 7;
@@ -1464,7 +1503,7 @@ void Wheelchair::loadcell_update() {
       loadcell_current[0] = (0.1*-loadcell_current_pre[0] + 0.015*loadcell_current_hand[0])/0.115;
     }
   }
-  
+  //////////////////////////////////////////
   if(abs(loadcell_current_pre_hand[1]-loadcell_current_hand[1])>7 || abs(loadcell_current_pre_hand[0]+loadcell_current_hand[0])>7){
     vibration_count++;
   }
@@ -1477,7 +1516,26 @@ void Wheelchair::loadcell_update() {
     loadcell_current[1] = 0;
     loadcell_current[0] = 0;
   }
-  
+  //////////////////////////////
+  if(loadcell_current_hand[0]*loadcell_current_pre_hand[0]>0){ //already sign change
+    SignGap = millis()- pre_time;
+    if(SignGap<180){
+      SignCount++;
+    }
+    else{
+      SignCount = 0;
+    }
+    pre_time = millis();
+  }
+  else{
+    if(millis()-pre_time>180){
+      SignCount = 0;
+    }
+  }
+  if(SignCount>=5){
+    loadcell_current[1] = 0;
+    loadcell_current[0] = 0;
+  }
 }
 
 
@@ -2088,6 +2146,20 @@ void Wheelchair::auto_calibration() {
     }
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
