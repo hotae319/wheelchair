@@ -22,7 +22,7 @@ const int16_t LOADCELL_RAW_NOISE_THRES = 5000;
 const float LOADCELL_CURRENT_GAIN_F = 0.04;   //0.020
 const float LOADCELL_CURRENT_GAIN_B = 0.06;   //0.017
 
-const float LOADCELL_CURRENT_DEADZONE = 0.5;
+const float LOADCELL_CURRENT_DEADZONE = 0.8;
 const float LOADCELL_CURRENT_MAX = 30;
 const float VEL_MAX = 180;
 
@@ -50,6 +50,10 @@ const float HAND_GAIN = 0.12;
 const float I_BODY_d = 3.26;
 const float M_BODY_d = 42.2;
 const float D_MASSCENTER_d = 0.11; 
+
+const uint16_t TOUCH_M_THRESHOLD = 320;
+const uint16_t TOUCH_L_THRESHOLD = 750;
+const uint16_t TOUCH_SIT_THRESHOLD = 350;
 
 enum cart_state_e {
   RUN,
@@ -152,6 +156,25 @@ const unsigned short crc_table[256] = { 0x0000,
 
 
 #endif /* CONSTANTS_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

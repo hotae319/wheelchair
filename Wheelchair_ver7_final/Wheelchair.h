@@ -92,6 +92,8 @@ class Wheelchair {
     float _desire_phi;
     cart_pose _cart_pose;
     imu_pose _imu_pose;
+    bool prevent_sudden = 0;
+    int8_t prevent_count;
 
     float *Ctorque; float* Distemp; float *midParam;
     float *pidtorque;  
@@ -275,6 +277,26 @@ class Wheelchair {
 
 
 #endif /* Wheelchair_H_ */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
